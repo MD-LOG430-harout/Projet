@@ -1,0 +1,244 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev}
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./infra/mysql/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$${MYSQL_ROOT_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  mysql-bootstrap:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev}
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command:
+      - sh
+      - -c
+      - >
+        mysql -hmysql -uroot -p${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev} -e "
+        CREATE DATABASE IF NOT EXISTS clients_identite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS conformite_audit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS catalogue_offres CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS lignes_services CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS commandes_activations CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        CREATE DATABASE IF NOT EXISTS usage_facturation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+        GRANT ALL PRIVILEGES ON clients_identite.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON conformite_audit.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON catalogue_offres.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON lignes_services.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON commandes_activations.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON usage_facturation.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        FLUSH PRIVILEGES;"
+
+  svc-conformite-audit:
+    build:
+      context: .
+      dockerfile: services/svc-conformite-audit/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: conformite_audit
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  svc-clients-identite:
+    build:
+      context: .
+      dockerfile: services/svc-clients-identite/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: clients_identite
+      AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+      svc-conformite-audit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  svc-catalogue-offres:
+    build:
+      context: .
+      dockerfile: services/svc-catalogue-offres/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: catalogue_offres
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  svc-lignes-services:
+    build:
+      context: .
+      dockerfile: services/svc-lignes-services/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: lignes_services
+      HLR_ENABLED: ${HLR_ENABLED:-false}
+      HLR_FORCE_FAILURE: ${HLR_FORCE_FAILURE:-false}
+      FREE5GC_WEBUI_URL: ${FREE5GC_WEBUI_URL:-http://host.docker.internal:5050}
+      FREE5GC_WEBUI_USERNAME: ${FREE5GC_WEBUI_USERNAME:-admin}
+      FREE5GC_WEBUI_PASSWORD: ${FREE5GC_WEBUI_PASSWORD:-free5gc}
+      FREE5GC_PLMN_ID: ${FREE5GC_PLMN_ID:-20893}
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  svc-commandes-activations:
+    build:
+      context: .
+      dockerfile: services/svc-commandes-activations/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: commandes_activations
+      CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
+      CATALOGUE_SERVICE_URL: http://svc-catalogue-offres:5000
+      LINES_SERVICE_URL: http://svc-lignes-services:5000
+      AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+      svc-clients-identite:
+        condition: service_healthy
+      svc-catalogue-offres:
+        condition: service_healthy
+      svc-lignes-services:
+        condition: service_healthy
+      svc-conformite-audit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  svc-usage-facturation:
+    build:
+      context: .
+      dockerfile: services/svc-usage-facturation/Dockerfile
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_USER: ${MYSQL_USER:-cantelcox}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_DATABASE: usage_facturation
+      CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
+      AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
+      PAYMENT_GATEWAY_FORCE_FAILURE: ${PAYMENT_GATEWAY_FORCE_FAILURE:-false}
+    depends_on:
+      mysql-bootstrap:
+        condition: service_completed_successfully
+      svc-clients-identite:
+        condition: service_healthy
+      svc-conformite-audit:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api-gateway:
+    image: nginx:1.27-alpine
+    ports:
+      - "${API_GATEWAY_PORT:-8080}:80"
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      svc-clients-identite:
+        condition: service_healthy
+      svc-conformite-audit:
+        condition: service_healthy
+      svc-catalogue-offres:
+        condition: service_healthy
+      svc-lignes-services:
+        condition: service_healthy
+      svc-commandes-activations:
+        condition: service_healthy
+      svc-usage-facturation:
+        condition: service_healthy
+
+  swagger-ui:
+    image: swaggerapi/swagger-ui:v5.17.14
+    ports:
+      - "${SWAGGER_UI_PORT:-8081}:8080"
+    environment:
+      SWAGGER_JSON: /openapi.yaml
+    volumes:
+      - ./docs/api/openapi.yaml:/openapi.yaml:ro
+    depends_on:
+      - api-gateway
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - ./infra/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    depends_on:
+      - svc-clients-identite
+      - svc-conformite-audit
+      - svc-catalogue-offres
+      - svc-lignes-services
+      - svc-commandes-activations
+      - svc-usage-facturation
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+
+volumes:
+  mysql-data:
+  grafana-data:
