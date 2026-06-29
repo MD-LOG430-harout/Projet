@@ -1,0 +1,163 @@
+# =============================================================================
+#  Mini-stack free5GC : juste ce qu'il faut pour interroger l'UDM
+#  -> MongoDB + NRF + UDR + UDM + WebUI + un conteneur "fournisseur"
+#
+#  IMPORTANT : ce fichier doit etre place A LA RACINE du depot free5gc-compose
+#  (clone : https://github.com/free5gc/free5gc-compose) pour que les chemins
+#  ./config et ./cert existent. Voir le README.
+#
+#  Lancement :  docker compose -f docker-compose.udm-min.yaml up -d
+# =============================================================================
+
+services:
+
+  # ---- Base de donnees : stockage reel des abonnes -------------------------
+  db:
+    container_name: mongodb
+    image: mongo:7
+    command: mongod --port 27017
+    expose:
+      - "27017"
+    ports:
+      - "27017:27017"
+    volumes:
+      - dbdata-mini:/data/db
+    networks:
+      privnet:
+        aliases:
+          - db
+
+  # ---- NRF : annuaire / decouverte de service ------------------------------
+  nrf:
+    container_name: nrf
+    image: free5gc/nrf:v4.1.0
+    command: ./nrf -c ./config/nrfcfg.yaml
+    environment:
+      DB_URI: mongodb://db/free5gc
+      GIN_MODE: release
+    volumes:
+      - ./config/nrfcfg.yaml:/free5gc/config/nrfcfg.yaml
+      - ./cert:/free5gc/cert
+    expose:
+      - "8000"
+    depends_on:
+      - db
+    networks:
+      privnet:
+        aliases:
+          - nrf.free5gc.org
+
+  # ---- UDR : acces aux donnees d'abonnes (lit dans Mongo) ------------------
+  udr:
+    container_name: udr
+    image: free5gc/udr:v4.1.0
+    command: ./udr -c ./config/udrcfg.yaml
+    environment:
+      DB_URI: mongodb://db/free5gc
+      GIN_MODE: release
+    volumes:
+      - ./config/udrcfg.yaml:/free5gc/config/udrcfg.yaml
+      - ./cert:/free5gc/cert
+    expose:
+      - "8000"
+    depends_on:
+      - db
+      - nrf
+    networks:
+      privnet:
+        aliases:
+          - udr.free5gc.org
+
+  # ---- UDM : ta fonction cible ---------------------------------------------
+  udm:
+    container_name: udm
+    image: free5gc/udm:v4.1.0
+    command: ./udm -c ./config/udmcfg.yaml
+    environment:
+      GIN_MODE: release
+    volumes:
+      - ./config/udmcfg.yaml:/free5gc/config/udmcfg.yaml
+      - ./cert:/free5gc/cert
+    expose:
+      - "8000"
+    # Publie l'UDM vers l'hote pour pouvoir l'appeler depuis Postman/curl.
+    ports:
+      - "8000:8000"
+    depends_on:
+      - nrf
+      - udr
+    networks:
+      privnet:
+        aliases:
+          - udm.free5gc.org
+
+  # ---- WebUI : pour creer un abonne (http://localhost:5000) ----------------
+  webui:
+    container_name: webui
+    image: free5gc/webui:v4.1.0
+    command: ./webui -c ./config/webuicfg.yaml
+    environment:
+      GIN_MODE: release
+    volumes:
+      - ./config/webuicfg.yaml:/free5gc/config/webuicfg.yaml
+    expose:
+      - "2122"
+    ports:
+      # 5000 est souvent pris par AirPlay Receiver sur macOS -> on expose en 5001.
+      - "5050:5000"
+    depends_on:
+      - db
+      - nrf
+    networks:
+      privnet:
+        aliases:
+          - webui
+
+  # ---- TON conteneur fournisseur (appel externe vers l'UDM) ----------------
+  fournisseur:
+    container_name: fournisseur
+    build: ./fournisseur
+    environment:
+      # On cible l'UDM par son nom de service sur le reseau Docker.
+      UDM_BASE_URL: "http://udm.free5gc.org:8000"
+      # SUPI (= imsi-<MCC><MNC><MSIN>) de l'abonne a interroger.
+      # MCC/MNC par defaut de free5GC : 208 / 93.
+      SUPI: "imsi-208930000000001"
+      PLMN_MCC: "208"
+      PLMN_MNC: "93"
+    depends_on:
+      - udm
+    networks:
+      - privnet
+    # On relance a la main pour tester ; pas de redemarrage en boucle.
+    restart: "no"
+
+  # ---- usage-api : facade REST de lecture de l'usage (charging) -----------
+  # Lit la collection MongoDB cantelcox_usage et l'expose en REST, pour que le
+  # BSS (CanTelcoX / usage-billing) n'accede plus directement a MongoDB.
+  usage-api:
+    container_name: usage-api
+    build: ./usage-api
+    environment:
+      MONGO_URI: "mongodb://db:27017/free5gc"
+      MONGO_DB: "free5gc"
+      MONGO_COLLECTION: "cantelcox_usage"
+    ports:
+      - "8090:8080"     # CanTelcoX y accede via host.docker.internal:8090
+    depends_on:
+      - db
+    networks:
+      - privnet
+
+networks:
+  privnet:
+    name: privnet
+    ipam:
+      driver: default
+      config:
+        - subnet: 10.100.200.0/24
+    driver_opts:
+      com.docker.network.bridge.name: br-free5gc
+
+volumes:
+  dbdata-mini:

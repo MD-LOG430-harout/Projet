@@ -1,0 +1,862 @@
+openapi: 3.0.3
+info:
+  title: CanTelcoX Phase 1 API
+  version: 0.1.0
+  description: Phase 1 API for UC-01, UC-02, UC-03, UC-05, UC-06, and append-only audit evidence. Protected endpoints use an OAuth2-style Bearer access token enforced by the NGINX API Gateway after MFA.
+servers:
+  - url: http://localhost:8080
+paths:
+  /v1/customers/register:
+    post:
+      summary: Register and verify a customer identity
+      tags: [ClientsIdentite]
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterCustomerRequest'
+      responses:
+        '201':
+          description: Customer registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '400':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+  /v1/customers/{customerId}:
+    get:
+      summary: Validate and retrieve a customer for later activation flows
+      tags: [ClientsIdentite]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Customer found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Customer'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/auth/login:
+    post:
+      summary: Validate credentials and create an MFA challenge
+      tags: [ClientsIdentite]
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '202':
+          description: MFA challenge created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+  /v1/auth/mfa/verify:
+    post:
+      summary: Verify an MFA challenge
+      tags: [ClientsIdentite]
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaVerifyRequest'
+      responses:
+        '200':
+          description: MFA verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaVerifyResponse'
+        '401':
+          $ref: '#/components/responses/Error'
+  /v1/audit-events:
+    get:
+      summary: List audit events by TraceId
+      description: Read-only evidence endpoint for Phase 1 demonstrations. Audit events remain append-only; no update or delete routes are exposed.
+      tags: [ConformiteAudit]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: traceId
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Audit events matching the trace
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventListResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+    post:
+      summary: Append an audit event
+      tags: [ConformiteAudit]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditEventRequest'
+      responses:
+        '201':
+          description: Audit event appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuditEventResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+  /v1/offers:
+    get:
+      summary: List active offers for UC-05 order intake
+      description: Returns active catalogue offers that can be used to create a Phase 1 order.
+      tags: [CatalogueOffres]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Active offers
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  offers:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Offer'
+  /v1/offers/{offerId}:
+    get:
+      summary: Retrieve an offer for activation eligibility validation
+      tags: [CatalogueOffres]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: offerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Offer found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Offer'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/lines/{lineId}:
+    get:
+      summary: Retrieve an activated line
+      tags: [LignesServices]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: lineId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Line found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Line'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/activations:
+    post:
+      summary: Activate a mobile line
+      description: UC-03 activation orchestration. This command validates customer and offer, asks Lignes & Services to provision the line, records audit events, and enforces Idempotency-Key.
+      tags: [CommandesActivations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivationRequest'
+      responses:
+        '201':
+          description: Activation created, or replayed idempotently with the same response body
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+              description: '`true` when the response was replayed from a previous identical Idempotency-Key.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivationResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+  /v1/orders:
+    post:
+      summary: Place an order for an active mobile offer
+      description: UC-05 Phase 1 order creation and validation. NEW_PLAN is implemented end to end as accepted order creation. CHANGE_PLAN and ADD_OPTION are documented as future work and blocked by simple compatibility validation. The endpoint validates customer eligibility, active offer, risk placeholder, idempotency, auditability, and simulated confirmation. It does not automatically trigger UC-03 activation.
+      tags: [CommandesActivations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/TraceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OrderRequest'
+      responses:
+        '201':
+          description: Order created, or replayed idempotently with the same response body
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+              description: '`true` when the response was replayed from a previous identical Idempotency-Key.'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '403':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '501':
+          $ref: '#/components/responses/Error'
+  /v1/invoices:
+    get:
+      summary: List invoices for a customer
+      tags: [FacturationPaiements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: customerId
+          in: query
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Customer invoices
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceListResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/invoices/{invoiceId}:
+    get:
+      summary: Get invoice by ID
+      tags: [FacturationPaiements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Invoice found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Invoice'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/invoices/{invoiceId}/payments:
+    post:
+      summary: Pay an invoice
+      description: UC-06 idempotent invoice payment using a simulated payment gateway. Requires Idempotency-Key.
+      tags: [FacturationPaiements]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+      responses:
+        '201':
+          description: Payment accepted, or replayed idempotently with the same response body
+          headers:
+            Idempotency-Replayed:
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentResponse'
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
+          $ref: '#/components/responses/Error'
+        '409':
+          $ref: '#/components/responses/Error'
+        '503':
+          $ref: '#/components/responses/Error'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque
+      description: >
+        Use the sessionToken returned by POST /v1/auth/mfa/verify as
+        Authorization: Bearer <token>. The API Gateway validates it through
+        the identity service introspection endpoint.
+  parameters:
+    TraceId:
+      name: TraceId
+      in: header
+      required: false
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Required for activation and payment commands. Repeating the same key with the same payload returns the stored result without creating a duplicate activation or payment.
+  responses:
+    Error:
+      description: Normalized JSON error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    RegisterCustomerRequest:
+      type: object
+      required: [email, password, displayName, legalName, address, identityDocument]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          minLength: 8
+        displayName:
+          type: string
+        legalName:
+          type: string
+          description: Legal customer name used for simulated identity verification.
+        address:
+          $ref: '#/components/schemas/Address'
+        identityDocument:
+          $ref: '#/components/schemas/IdentityDocumentRequest'
+        customerType:
+          type: string
+          enum: [individual, sme]
+          default: individual
+      example:
+        email: alice@example.test
+        password: Stronger123
+        displayName: Alice Test
+        legalName: Alice Test
+        address:
+          line1: 123 Rue Exemple
+          city: Montreal
+          province: QC
+          postalCode: H1A1A1
+        identityDocument:
+          type: driver_license
+          number: SIM-QC-123456
+        customerType: individual
+    Customer:
+      type: object
+      properties:
+        customerId:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        legalName:
+          type: string
+        address:
+          $ref: '#/components/schemas/Address'
+        identityDocument:
+          $ref: '#/components/schemas/IdentityDocumentPublic'
+        customerType:
+          type: string
+        status:
+          type: string
+        identityStatus:
+          type: string
+        riskLevel:
+          type: string
+    Address:
+      type: object
+      required: [line1, city, province, postalCode]
+      properties:
+        line1:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+          description: Canadian province or territory code.
+          enum: [AB, BC, MB, NB, NL, NS, NT, NU, ON, PE, QC, SK, YT]
+        postalCode:
+          type: string
+          description: Canadian postal code without requiring a space.
+          example: H1A1A1
+    IdentityDocumentRequest:
+      type: object
+      required: [type, number]
+      properties:
+        type:
+          type: string
+          enum: [driver_license, passport, provincial_id]
+        number:
+          type: string
+          minLength: 6
+          description: Simulated document number. The raw value is not returned and is stored only as a hash.
+    IdentityDocumentPublic:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [driver_license, passport, provincial_id]
+        verified:
+          type: boolean
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+        password:
+          type: string
+        riskSignals:
+          type: object
+          description: Optional simulated login-risk signals for Phase 1 demos.
+          properties:
+            newDevice:
+              type: boolean
+            roaming:
+              type: boolean
+            unusualLocation:
+              type: boolean
+            simSwapRecent:
+              type: boolean
+    LoginResponse:
+      type: object
+      properties:
+        challengeId:
+          type: string
+        mfaRequired:
+          type: boolean
+        mfaStrength:
+          type: string
+          enum: [STANDARD, STEP_UP]
+        loginRisk:
+          type: string
+          enum: [LOW, HIGH]
+        devOtp:
+          type: string
+          description: Development-only OTP for Phase 1 demo.
+    MfaVerifyRequest:
+      type: object
+      required: [challengeId, otp]
+      properties:
+        challengeId:
+          type: string
+        otp:
+          type: string
+    MfaVerifyResponse:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        customerId:
+          type: string
+        sessionToken:
+          type: string
+        customerStatus:
+          type: string
+    AuditEventRequest:
+      type: object
+      required: [eventType, sourceService, result]
+      properties:
+        eventType:
+          type: string
+        actorId:
+          type: string
+          nullable: true
+        customerId:
+          type: string
+          nullable: true
+        resourceId:
+          type: string
+          nullable: true
+        sourceService:
+          type: string
+        result:
+          type: string
+        metadata:
+          type: object
+    AuditEventResponse:
+      type: object
+      properties:
+        auditEventId:
+          type: string
+        eventType:
+          type: string
+        traceId:
+          type: string
+        sourceService:
+          type: string
+        result:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    AuditEventListResponse:
+      type: object
+      properties:
+        traceId:
+          type: string
+        events:
+          type: array
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+    AuditEvent:
+      allOf:
+        - $ref: '#/components/schemas/AuditEventResponse'
+        - type: object
+          properties:
+            actorId:
+              type: string
+              nullable: true
+            customerId:
+              type: string
+              nullable: true
+            resourceId:
+              type: string
+              nullable: true
+            metadata:
+              type: object
+    Offer:
+      type: object
+      properties:
+        offerId:
+          type: string
+          example: forfait-5g-20gb
+        name:
+          type: string
+        monthlyPrice:
+          type: number
+          format: float
+        dataGb:
+          type: integer
+        status:
+          type: string
+          enum: [ACTIVE, INACTIVE]
+    OrderRequest:
+      type: object
+      required: [customerId, offerId, quantity, orderType]
+      properties:
+        customerId:
+          type: string
+        offerId:
+          type: string
+          example: forfait-5g-20gb
+        quantity:
+          type: integer
+          minimum: 1
+          example: 1
+        orderType:
+          type: string
+          enum: [NEW_PLAN, CHANGE_PLAN, ADD_OPTION]
+          description: NEW_PLAN is implemented in Phase 1. CHANGE_PLAN and ADD_OPTION are accepted by the contract but blocked as future work unless line-profile behavior is added.
+        lineId:
+          type: string
+          nullable: true
+          description: Required for future CHANGE_PLAN and ADD_OPTION flows.
+      example:
+        customerId: 150fa0f6-fd87-4f12-a152-41dcc29ea87d
+        offerId: forfait-5g-20gb
+        quantity: 1
+        orderType: NEW_PLAN
+    OrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        offerId:
+          type: string
+        orderType:
+          type: string
+          enum: [NEW_PLAN, CHANGE_PLAN, ADD_OPTION]
+        status:
+          type: string
+          enum: [ACCEPTED, CREATED, REJECTED]
+        orchestrationStatus:
+          type: string
+          enum: [READY_FOR_ACTIVATION]
+        confirmationStatus:
+          type: string
+          enum: [SIMULATED_SENT]
+        totalAmount:
+          type: number
+          format: float
+        currency:
+          type: string
+          enum: [CAD]
+        createdAt:
+          type: string
+          format: date-time
+    ActivationRequest:
+      type: object
+      required: [customerId, offerId, simType]
+      properties:
+        customerId:
+          type: string
+        offerId:
+          type: string
+          example: forfait-5g-20gb
+        simType:
+          type: string
+          enum: [SIM, ESIM]
+        numberMode:
+          type: string
+          enum: [NEW, PORT_IN]
+          default: NEW
+          description: NEW assigns a new MSISDN. PORT_IN simulates accepting portability for the provided MSISDN.
+        msisdn:
+          type: string
+          nullable: true
+          description: Optional MSISDN. Required when numberMode is PORT_IN; optional for NEW.
+      example:
+        customerId: 150fa0f6-fd87-4f12-a152-41dcc29ea87d
+        offerId: forfait-5g-20gb
+        simType: ESIM
+        numberMode: NEW
+    ActivationResponse:
+      type: object
+      properties:
+        activationId:
+          type: string
+        status:
+          type: string
+          enum: [ACTIVE, FAILED]
+        customerId:
+          type: string
+        offerId:
+          type: string
+        lineId:
+          type: string
+        msisdn:
+          type: string
+        simType:
+          type: string
+        simIdentifier:
+          type: string
+        hlrStatus:
+          type: string
+        numberMode:
+          type: string
+          enum: [NEW, PORT_IN]
+        portabilityStatus:
+          type: string
+          nullable: true
+          enum: [ACCEPTED]
+    Line:
+      type: object
+      properties:
+        lineId:
+          type: string
+        customerId:
+          type: string
+        offerId:
+          type: string
+        msisdn:
+          type: string
+        simType:
+          type: string
+        simIdentifier:
+          type: string
+        imsi:
+          type: string
+        supi:
+          type: string
+        status:
+          type: string
+          enum: [PENDING, ACTIVE, FAILED]
+        hlrStatus:
+          type: string
+        numberMode:
+          type: string
+          enum: [NEW, PORT_IN]
+        portabilityStatus:
+          type: string
+          nullable: true
+          enum: [ACCEPTED]
+        failureReason:
+          type: string
+          nullable: true
+    InvoiceListResponse:
+      type: object
+      properties:
+        customerId:
+          type: string
+        invoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+    Invoice:
+      type: object
+      properties:
+        invoiceId:
+          type: string
+        customerId:
+          type: string
+        billingPeriod:
+          type: string
+          example: '2026-06'
+        amountDue:
+          type: number
+          format: float
+        currency:
+          type: string
+          enum: [CAD]
+        status:
+          type: string
+          enum: [OPEN, PAID, CANCELLED]
+        dueDate:
+          type: string
+          format: date
+        createdAt:
+          type: string
+          format: date-time
+    PaymentRequest:
+      type: object
+      required: [customerId, paymentMethod, amount, currency]
+      properties:
+        customerId:
+          type: string
+        paymentMethod:
+          type: string
+          enum: [SIMULATED_CARD]
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+          enum: [CAD]
+      example:
+        customerId: 150fa0f6-fd87-4f12-a152-41dcc29ea87d
+        paymentMethod: SIMULATED_CARD
+        amount: 49.99
+        currency: CAD
+    PaymentResponse:
+      type: object
+      properties:
+        paymentId:
+          type: string
+        invoiceId:
+          type: string
+        customerId:
+          type: string
+        amount:
+          type: number
+          format: float
+        currency:
+          type: string
+        status:
+          type: string
+          enum: [ACCEPTED]
+        invoiceStatus:
+          type: string
+          enum: [PAID]
+        gatewayTransactionId:
+          type: string
+    Error:
+      type: object
+      required: [code, message, details, traceId, timestamp]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+        traceId:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time

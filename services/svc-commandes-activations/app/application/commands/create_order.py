@@ -7,7 +7,8 @@ from services.shared.errors import ApiError
 from app.domain.model.order import Order
 
 
-SUPPORTED_ORDER_TYPES = {"MOBILE_PLAN_SUBSCRIPTION"}
+SUPPORTED_ORDER_TYPES = {"NEW_PLAN", "CHANGE_PLAN", "ADD_OPTION"}
+IMPLEMENTED_ORDER_TYPES = {"NEW_PLAN"}
 
 
 class CreateOrder:
@@ -35,15 +36,46 @@ class CreateOrder:
         try:
             customer = self.customer_client.get_customer(customer_id, trace_id=trace_id)
             if customer.get("status") != "ACTIVE" or customer.get("identityStatus") != "VERIFIED":
-                raise ApiError(409, "customer_not_eligible", "Customer is not eligible to place this order")
-            if customer.get("riskLevel") == "HIGH":
-                raise ApiError(409, "order_blocked_high_risk", "Order is blocked because the customer risk level is high")
+                self._audit(
+                    "ORDER_ELIGIBILITY_FAILED",
+                    order_id,
+                    customer_id,
+                    "FAILED",
+                    trace_id,
+                    {"status": customer.get("status"), "identityStatus": customer.get("identityStatus")},
+                )
+                raise ApiError(403, "customer_not_eligible", "Customer is not eligible to place this order")
             self._audit("ORDER_CUSTOMER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
+            self._audit("ORDER_RISK_CHECKED", order_id, customer_id, "SUCCESS", trace_id, {"riskLevel": customer.get("riskLevel")})
+            if customer.get("riskLevel") == "HIGH":
+                self._audit("ORDER_BLOCKED_RISK", order_id, customer_id, "FAILED", trace_id, {"riskLevel": "HIGH"})
+                raise ApiError(409, "order_blocked_high_risk", "Order is blocked because the customer risk level is high")
 
             offer = self.offer_client.get_offer(offer_id, trace_id=trace_id)
             if offer.get("status") != "ACTIVE":
                 raise ApiError(409, "offer_inactive", "Offer is not active", {"offerId": offer_id})
             self._audit("ORDER_OFFER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
+
+            if payload["orderType"] in {"CHANGE_PLAN", "ADD_OPTION"} and not payload.get("lineId"):
+                self._audit(
+                    "ORDER_COMPATIBILITY_FAILED",
+                    order_id,
+                    customer_id,
+                    "FAILED",
+                    trace_id,
+                    {"orderType": payload["orderType"], "reason": "lineId_required"},
+                )
+                raise ApiError(409, "order_incompatible", "lineId is required for this order type", {"field": "lineId"})
+            if payload["orderType"] not in IMPLEMENTED_ORDER_TYPES:
+                self._audit(
+                    "ORDER_COMPATIBILITY_FAILED",
+                    order_id,
+                    customer_id,
+                    "FAILED",
+                    trace_id,
+                    {"orderType": payload["orderType"], "reason": "phase1_not_implemented"},
+                )
+                raise ApiError(501, "order_type_not_implemented", "This order type is documented as future work for Phase 1")
         except ApiError as exc:
             self._audit("ORDER_REJECTED", order_id, customer_id, "FAILED", trace_id, {"code": exc.code, "details": exc.details})
             raise
@@ -57,6 +89,8 @@ class CreateOrder:
             "offerId": offer_id,
             "orderType": payload["orderType"],
             "status": "ACCEPTED",
+            "orchestrationStatus": "READY_FOR_ACTIVATION",
+            "confirmationStatus": "SIMULATED_SENT",
             "totalAmount": total_amount,
             "currency": "CAD",
         }
@@ -66,6 +100,8 @@ class CreateOrder:
             offer_id=offer_id,
             order_type=payload["orderType"],
             status="ACCEPTED",
+            orchestration_status="READY_FOR_ACTIVATION",
+            confirmation_status="SIMULATED_SENT",
             total_amount=total_amount,
             currency="CAD",
             idempotency_key=idempotency_key,
@@ -80,6 +116,8 @@ class CreateOrder:
             offer_id=order.offer_id,
             order_type=order.order_type,
             status=order.status,
+            orchestration_status=order.orchestration_status,
+            confirmation_status=order.confirmation_status,
             total_amount=order.total_amount,
             currency=order.currency,
             idempotency_key=order.idempotency_key,
@@ -90,6 +128,7 @@ class CreateOrder:
         )
         self.order_repository.create_order(order)
         self._audit("ORDER_ACCEPTED", order_id, customer_id, "SUCCESS", trace_id, {"totalAmount": total_amount, "currency": "CAD"})
+        self._audit("ORDER_CONFIRMATION_SIMULATED", order_id, customer_id, "SUCCESS", trace_id, {"confirmationStatus": "SIMULATED_SENT"})
         return response, 201, False
 
     def _validate_payload(self, payload):
@@ -98,7 +137,7 @@ class CreateOrder:
         if not payload.get("offerId"):
             raise ApiError(400, "validation_error", "offerId is required", {"field": "offerId"})
         if payload.get("orderType") not in SUPPORTED_ORDER_TYPES:
-            raise ApiError(400, "validation_error", "orderType must be MOBILE_PLAN_SUBSCRIPTION", {"field": "orderType"})
+            raise ApiError(400, "validation_error", "orderType must be NEW_PLAN, CHANGE_PLAN, or ADD_OPTION", {"field": "orderType"})
         try:
             quantity = int(payload.get("quantity"))
         except (TypeError, ValueError):

@@ -40,6 +40,8 @@ class MysqlActivationRepository:
                       offer_id VARCHAR(80) NOT NULL,
                       order_type VARCHAR(60) NOT NULL,
                       status VARCHAR(40) NOT NULL,
+                      orchestration_status VARCHAR(60) NOT NULL DEFAULT 'READY_FOR_ACTIVATION',
+                      confirmation_status VARCHAR(60) NOT NULL DEFAULT 'SIMULATED_SENT',
                       total_amount DECIMAL(10,2) NOT NULL,
                       currency CHAR(3) NOT NULL,
                       idempotency_key VARCHAR(160) NOT NULL,
@@ -55,8 +57,26 @@ class MysqlActivationRepository:
                     )
                     """
                 )
+                self._ensure_column(cursor, "orders", "orchestration_status", "VARCHAR(60) NOT NULL DEFAULT 'READY_FOR_ACTIVATION'")
+                self._ensure_column(cursor, "orders", "confirmation_status", "VARCHAR(60) NOT NULL DEFAULT 'SIMULATED_SENT'")
             conn.commit()
         self._schema_checked = True
+
+    def _ensure_column(self, cursor, table_name, column_name, definition):
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS column_count
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = %s
+              AND COLUMN_NAME = %s
+            """,
+            (table_name, column_name),
+        )
+        row = cursor.fetchone()
+        exists = row["column_count"] if isinstance(row, dict) else row[0]
+        if not exists:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
     def create(self, activation):
         self.ensure_schema()
@@ -98,9 +118,9 @@ class MysqlActivationRepository:
                 cursor.execute(
                     """
                     INSERT INTO orders
-                    (order_id, customer_id, offer_id, order_type, status, total_amount, currency,
+                    (order_id, customer_id, offer_id, order_type, status, orchestration_status, confirmation_status, total_amount, currency,
                      idempotency_key, request_hash, response_body, http_status, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         order.order_id,
@@ -108,6 +128,8 @@ class MysqlActivationRepository:
                         order.offer_id,
                         order.order_type,
                         order.status,
+                        order.orchestration_status,
+                        order.confirmation_status,
                         order.total_amount,
                         order.currency,
                         order.idempotency_key,

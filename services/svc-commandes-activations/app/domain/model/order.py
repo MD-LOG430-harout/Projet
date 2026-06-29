@@ -9,6 +9,8 @@ class Order:
     offer_id: str
     order_type: str
     status: str
+    orchestration_status: str
+    confirmation_status: str
     total_amount: float
     currency: str
     idempotency_key: str

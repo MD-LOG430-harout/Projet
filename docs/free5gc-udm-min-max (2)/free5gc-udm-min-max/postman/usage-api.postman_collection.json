@@ -1,0 +1,87 @@
+{
+  "info": {
+    "name": "CanTelcoX - usage-api (CDR lecture/écriture)",
+    "description": "Façade REST devant la collection MongoDB cantelcox_usage du cœur free5GC. Lecture (consommée par usage-billing : UC-04 / UC-08) et écriture (simulation de CDR, rôle du CHF). HTTP/1.1 — fonctionne dans Postman.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8090" },
+    { "key": "msisdn", "value": "14385551234" },
+    { "key": "cycle", "value": "2026-06" }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "url": { "raw": "{{baseUrl}}/health", "host": ["{{baseUrl}}"], "path": ["health"] }
+      }
+    },
+    {
+      "name": "1. Simuler des CDR (POST .../simulate)",
+      "request": {
+        "method": "POST",
+        "url": {
+          "raw": "{{baseUrl}}/usage/{{msisdn}}/simulate?count=50&days=30",
+          "host": ["{{baseUrl}}"],
+          "path": ["usage", "{{msisdn}}", "simulate"],
+          "query": [
+            { "key": "count", "value": "50" },
+            { "key": "days", "value": "30" }
+          ]
+        }
+      }
+    },
+    {
+      "name": "2. Ajouter un CDR unique (POST .../usage)",
+      "request": {
+        "method": "POST",
+        "header": [ { "key": "Content-Type", "value": "application/json" } ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"type\": \"DATA\",\n  \"quantity\": 524288000\n}"
+        },
+        "url": {
+          "raw": "{{baseUrl}}/usage/{{msisdn}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["usage", "{{msisdn}}"]
+        }
+      },
+      "description": "type ∈ VOICE | SMS | DATA ; quantity = secondes (VOICE) / nombre (SMS) / octets (DATA). recordedAt optionnel (ISO 8601)."
+    },
+    {
+      "name": "3. Lire le détail d'usage (GET .../usage)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/usage/{{msisdn}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["usage", "{{msisdn}}"]
+        }
+      }
+    },
+    {
+      "name": "4. Agrégat pour facturation (GET .../summary)",
+      "request": {
+        "method": "GET",
+        "url": {
+          "raw": "{{baseUrl}}/usage/{{msisdn}}/summary?cycle={{cycle}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["usage", "{{msisdn}}", "summary"],
+          "query": [ { "key": "cycle", "value": "{{cycle}}" } ]
+        }
+      }
+    },
+    {
+      "name": "5. Purger l'usage (DELETE .../usage)",
+      "request": {
+        "method": "DELETE",
+        "url": {
+          "raw": "{{baseUrl}}/usage/{{msisdn}}",
+          "host": ["{{baseUrl}}"],
+          "path": ["usage", "{{msisdn}}"]
+        }
+      }
+    }
+  ]
+}

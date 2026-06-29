@@ -46,3 +46,10 @@ class MysqlOfferRepository:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM offers WHERE offer_id=%s", (offer_id,))
                 return cursor.fetchone()
+
+    def list_active(self):
+        self.ensure_schema()
+        with self.connection_factory() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM offers WHERE status='ACTIVE' ORDER BY monthly_price, offer_id")
+                return cursor.fetchall()

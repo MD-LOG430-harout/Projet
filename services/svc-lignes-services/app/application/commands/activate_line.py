@@ -14,7 +14,7 @@ class ActivateLine:
         customer_id = payload.get("customerId")
         offer_id = payload.get("offerId")
         sim_type = (payload.get("simType") or "").upper()
-        msisdn = payload.get("msisdn") or self._generate_msisdn()
+        number_mode = (payload.get("numberMode") or ("PORT_IN" if payload.get("msisdn") else "NEW")).upper()
 
         if not customer_id:
             raise ApiError(400, "validation_error", "customerId is required", {"field": "customerId"})
@@ -22,11 +22,18 @@ class ActivateLine:
             raise ApiError(400, "validation_error", "offerId is required", {"field": "offerId"})
         if sim_type not in {"SIM", "ESIM"}:
             raise ApiError(400, "validation_error", "simType must be SIM or ESIM", {"field": "simType"})
+        if number_mode not in {"NEW", "PORT_IN"}:
+            raise ApiError(400, "validation_error", "numberMode must be NEW or PORT_IN", {"field": "numberMode"})
+        if number_mode == "PORT_IN" and not payload.get("msisdn"):
+            raise ApiError(400, "validation_error", "msisdn is required when numberMode is PORT_IN", {"field": "msisdn"})
+
+        msisdn = payload.get("msisdn") if number_mode == "PORT_IN" else payload.get("msisdn") or self._generate_msisdn()
         if self.line_repository.find_by_msisdn(msisdn):
             raise ApiError(409, "msisdn_unavailable", "MSISDN is already assigned", {"msisdn": msisdn})
 
         line_id = str(uuid.uuid4())
         imsi = self._generate_imsi()
+        portability_status = "ACCEPTED" if number_mode == "PORT_IN" else None
         line = Line(
             line_id=line_id,
             customer_id=customer_id,
@@ -38,6 +45,8 @@ class ActivateLine:
             supi=f"imsi-{imsi}",
             status="PENDING",
             hlr_status="PENDING",
+            number_mode=number_mode,
+            portability_status=portability_status,
         )
         self.line_repository.create(line)
 

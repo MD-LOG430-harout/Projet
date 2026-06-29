@@ -22,6 +22,8 @@ def _line_public(line):
         "supi": value("supi"),
         "status": value("status"),
         "hlrStatus": value("hlr_status"),
+        "numberMode": value("number_mode"),
+        "portabilityStatus": value("portability_status"),
         "failureReason": value("failure_reason"),
     }
 

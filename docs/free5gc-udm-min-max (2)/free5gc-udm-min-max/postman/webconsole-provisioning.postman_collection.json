@@ -1,0 +1,120 @@
+{
+  "info": {
+    "name": "free5GC - Webconsole (provisioning)",
+    "description": "Provisioning d'abonnes via l'API REST de la webconsole free5GC (port hote 5001).\n\nNOTE : c'est ici qu'on CREE / MODIFIE un abonne (pas via nudm-sdm, qui est en lecture seule).\n\nFlux :\n  1. 'Login' -> recupere un JWT, stocke automatiquement dans la variable {{token}}\n  2. 'Get subscriber' -> recupere le profil complet (template a reutiliser)\n  3. 'Update MSISDN (PUT)' -> met a jour le numero de telephone (gpsis)\n\nLa webconsole utilise un header 'Token: <jwt>' (PAS 'Authorization: Bearer').\n\nVariables au niveau collection : webBaseUrl, supi, plmnId, msisdn, token.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "webBaseUrl", "value": "http://localhost:5001", "type": "string" },
+    { "key": "supi", "value": "imsi-208930000000001", "type": "string" },
+    { "key": "plmnId", "value": "20893", "type": "string" },
+    { "key": "msisdn", "value": "33612345678", "type": "string" },
+    { "key": "token", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "1. Login (recupere le JWT)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "// Stocke le token renvoye dans la variable de collection {{token}}",
+              "var json = pm.response.json();",
+              "var t = json.access_token || json.token || '';",
+              "pm.collectionVariables.set('token', t);",
+              "pm.test('token recupere', function () { pm.expect(t).to.not.eql(''); });"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"free5gc\"\n}"
+        },
+        "url": {
+          "raw": "{{webBaseUrl}}/api/login",
+          "host": [ "{{webBaseUrl}}" ],
+          "path": [ "api", "login" ]
+        },
+        "description": "Authentification admin (defaut : admin / free5gc). Le JWT renvoye est stocke dans {{token}}."
+      }
+    },
+    {
+      "name": "2. Get subscriber (template)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Token", "value": "{{token}}" }
+        ],
+        "url": {
+          "raw": "{{webBaseUrl}}/api/subscriber/{{supi}}/{{plmnId}}",
+          "host": [ "{{webBaseUrl}}" ],
+          "path": [ "api", "subscriber", "{{supi}}", "{{plmnId}}" ]
+        },
+        "description": "Recupere le profil complet de l'abonne. 200 = existe, 404 = absent. Sert aussi de template a copier pour le PUT."
+      }
+    },
+    {
+      "name": "3. Update MSISDN (PUT)",
+      "request": {
+        "method": "PUT",
+        "header": [
+          { "key": "Token", "value": "{{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"plmnID\": \"{{plmnId}}\",\n  \"ueId\": \"{{supi}}\",\n  \"AuthenticationSubscription\": {\n    \"authenticationMethod\": \"5G_AKA\",\n    \"permanentKey\": {\n      \"permanentKeyValue\": \"8baf473f2f8fd09487cccbd7097c6862\",\n      \"encryptionKey\": 0,\n      \"encryptionAlgorithm\": 0\n    },\n    \"sequenceNumber\": \"16f3b3f70fc2\",\n    \"authenticationManagementField\": \"8000\",\n    \"milenage\": {\n      \"op\": { \"opValue\": \"\", \"encryptionKey\": 0, \"encryptionAlgorithm\": 0 }\n    },\n    \"opc\": {\n      \"opcValue\": \"8e27b6af0e692e750f32667a3b14605d\",\n      \"encryptionKey\": 0,\n      \"encryptionAlgorithm\": 0\n    }\n  },\n  \"AccessAndMobilitySubscriptionData\": {\n    \"gpsis\": [ \"msisdn-{{msisdn}}\" ],\n    \"subscribedUeAmbr\": { \"uplink\": \"1 Gbps\", \"downlink\": \"2 Gbps\" },\n    \"nssai\": {\n      \"defaultSingleNssais\": [ { \"sst\": 1, \"sd\": \"010203\" } ],\n      \"singleNssais\": [ { \"sst\": 1, \"sd\": \"112233\" } ]\n    }\n  },\n  \"SessionManagementSubscriptionData\": [\n    {\n      \"singleNssai\": { \"sst\": 1, \"sd\": \"010203\" },\n      \"dnnConfigurations\": {\n        \"internet\": {\n          \"sscModes\": { \"defaultSscMode\": \"SSC_MODE_1\", \"allowedSscModes\": [ \"SSC_MODE_2\", \"SSC_MODE_3\" ] },\n          \"pduSessionTypes\": { \"defaultSessionType\": \"IPV4\", \"allowedSessionTypes\": [ \"IPV4\" ] },\n          \"sessionAmbr\": { \"uplink\": \"200 Mbps\", \"downlink\": \"100 Mbps\" },\n          \"5gQosProfile\": { \"5qi\": 9, \"arp\": { \"priorityLevel\": 8, \"preemptCap\": \"\", \"preemptVuln\": \"\" }, \"priorityLevel\": 8 }\n        }\n      }\n    }\n  ],\n  \"SmfSelectionSubscriptionData\": {\n    \"subscribedSnssaiInfos\": {\n      \"01010203\": { \"dnnInfos\": [ { \"dnn\": \"internet\" } ] }\n    }\n  },\n  \"AmPolicyData\": { \"subscCats\": [ \"free5gc\" ] },\n  \"SmPolicyData\": {\n    \"smPolicySnssaiData\": {\n      \"01010203\": {\n        \"snssai\": { \"sst\": 1, \"sd\": \"010203\" },\n        \"smPolicyDnnData\": { \"internet\": { \"dnn\": \"internet\" } }\n      }\n    }\n  },\n  \"FlowRules\": [],\n  \"QosFlows\": [],\n  \"ChargingDatas\": []\n}"
+        },
+        "url": {
+          "raw": "{{webBaseUrl}}/api/subscriber/{{supi}}/{{plmnId}}",
+          "host": [ "{{webBaseUrl}}" ],
+          "path": [ "api", "subscriber", "{{supi}}", "{{plmnId}}" ]
+        },
+        "description": "Met a jour l'abonne avec le MSISDN {{msisdn}} (champ gpsis = 'msisdn-<numero>').\n\nIMPORTANT : ce body est un profil free5GC par defaut. Si ta version differe, lance d'abord 'Get subscriber', copie le JSON renvoye ici, et change juste la valeur de gpsis. Le numero est en format international SANS le '+' (ex. 33612345678)."
+      }
+    },
+    {
+      "name": "4. Create subscriber (POST)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Token", "value": "{{token}}" },
+          { "key": "Content-Type", "value": "application/json" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"plmnID\": \"{{plmnId}}\",\n  \"ueId\": \"{{supi}}\",\n  \"AuthenticationSubscription\": {\n    \"authenticationMethod\": \"5G_AKA\",\n    \"permanentKey\": {\n      \"permanentKeyValue\": \"8baf473f2f8fd09487cccbd7097c6862\",\n      \"encryptionKey\": 0,\n      \"encryptionAlgorithm\": 0\n    },\n    \"sequenceNumber\": \"16f3b3f70fc2\",\n    \"authenticationManagementField\": \"8000\",\n    \"milenage\": {\n      \"op\": { \"opValue\": \"\", \"encryptionKey\": 0, \"encryptionAlgorithm\": 0 }\n    },\n    \"opc\": {\n      \"opcValue\": \"8e27b6af0e692e750f32667a3b14605d\",\n      \"encryptionKey\": 0,\n      \"encryptionAlgorithm\": 0\n    }\n  },\n  \"AccessAndMobilitySubscriptionData\": {\n    \"gpsis\": [ \"msisdn-{{msisdn}}\" ],\n    \"subscribedUeAmbr\": { \"uplink\": \"1 Gbps\", \"downlink\": \"2 Gbps\" },\n    \"nssai\": {\n      \"defaultSingleNssais\": [ { \"sst\": 1, \"sd\": \"010203\" } ],\n      \"singleNssais\": [ { \"sst\": 1, \"sd\": \"112233\" } ]\n    }\n  },\n  \"SessionManagementSubscriptionData\": [\n    {\n      \"singleNssai\": { \"sst\": 1, \"sd\": \"010203\" },\n      \"dnnConfigurations\": {\n        \"internet\": {\n          \"sscModes\": { \"defaultSscMode\": \"SSC_MODE_1\", \"allowedSscModes\": [ \"SSC_MODE_2\", \"SSC_MODE_3\" ] },\n          \"pduSessionTypes\": { \"defaultSessionType\": \"IPV4\", \"allowedSessionTypes\": [ \"IPV4\" ] },\n          \"sessionAmbr\": { \"uplink\": \"200 Mbps\", \"downlink\": \"100 Mbps\" },\n          \"5gQosProfile\": { \"5qi\": 9, \"arp\": { \"priorityLevel\": 8, \"preemptCap\": \"\", \"preemptVuln\": \"\" }, \"priorityLevel\": 8 }\n        }\n      }\n    }\n  ],\n  \"SmfSelectionSubscriptionData\": {\n    \"subscribedSnssaiInfos\": {\n      \"01010203\": { \"dnnInfos\": [ { \"dnn\": \"internet\" } ] }\n    }\n  },\n  \"AmPolicyData\": { \"subscCats\": [ \"free5gc\" ] },\n  \"SmPolicyData\": {\n    \"smPolicySnssaiData\": {\n      \"01010203\": {\n        \"snssai\": { \"sst\": 1, \"sd\": \"010203\" },\n        \"smPolicyDnnData\": { \"internet\": { \"dnn\": \"internet\" } }\n      }\n    }\n  },\n  \"FlowRules\": [],\n  \"QosFlows\": [],\n  \"ChargingDatas\": []\n}"
+        },
+        "url": {
+          "raw": "{{webBaseUrl}}/api/subscriber/{{supi}}/{{plmnId}}",
+          "host": [ "{{webBaseUrl}}" ],
+          "path": [ "api", "subscriber", "{{supi}}", "{{plmnId}}" ]
+        },
+        "description": "Cree un nouvel abonne (profil free5GC par defaut, MSISDN = {{msisdn}}).\n\nPour creer un AUTRE abonne, change la variable {{supi}} (et idealement la cle 'permanentKeyValue'). Un POST sur un IMSI deja existant echoue : verifie avant avec 'Get subscriber' (404 = libre)."
+      }
+    },
+    {
+      "name": "5. Delete subscriber (DELETE)",
+      "request": {
+        "method": "DELETE",
+        "header": [
+          { "key": "Token", "value": "{{token}}" }
+        ],
+        "url": {
+          "raw": "{{webBaseUrl}}/api/subscriber/{{supi}}/{{plmnId}}",
+          "host": [ "{{webBaseUrl}}" ],
+          "path": [ "api", "subscriber", "{{supi}}", "{{plmnId}}" ]
+        },
+        "description": "Supprime l'abonne {{supi}} (PLMN {{plmnId}}). Retire entierement ses donnees de la base. 204/200 = supprime."
+      }
+    }
+  ]
+}

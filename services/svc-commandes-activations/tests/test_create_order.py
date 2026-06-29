@@ -33,6 +33,8 @@ class Orders:
             "offer_id": order.offer_id,
             "order_type": order.order_type,
             "status": order.status,
+            "orchestration_status": order.orchestration_status,
+            "confirmation_status": order.confirmation_status,
             "total_amount": order.total_amount,
             "currency": order.currency,
             "idempotency_key": order.idempotency_key,
@@ -46,14 +48,21 @@ class Orders:
 
 
 class Customers:
-    def __init__(self, exists=True, risk_level="LOW"):
+    def __init__(self, exists=True, risk_level="LOW", status="ACTIVE", identity_status="VERIFIED"):
         self.exists = exists
         self.risk_level = risk_level
+        self.status = status
+        self.identity_status = identity_status
 
     def get_customer(self, customer_id, trace_id=None):
         if not self.exists:
             raise ApiError(404, "customer_not_found", "Customer not found")
-        return {"customerId": customer_id, "status": "ACTIVE", "identityStatus": "VERIFIED", "riskLevel": self.risk_level}
+        return {
+            "customerId": customer_id,
+            "status": self.status,
+            "identityStatus": self.identity_status,
+            "riskLevel": self.risk_level,
+        }
 
 
 class Offers:
@@ -101,7 +110,7 @@ def order_payload(offer_id="forfait-5g-20gb", quantity=1):
         "customerId": "cust-1",
         "offerId": offer_id,
         "quantity": quantity,
-        "orderType": "MOBILE_PLAN_SUBSCRIPTION",
+        "orderType": "NEW_PLAN",
     }
 
 
@@ -116,9 +125,13 @@ def test_successful_order_creation_and_audit():
     assert response.status_code == 201
     body = response.get_json()
     assert body["status"] == "ACCEPTED"
+    assert body["orchestrationStatus"] == "READY_FOR_ACTIVATION"
+    assert body["confirmationStatus"] == "SIMULATED_SENT"
     assert body["totalAmount"] == 49.99
     assert body["currency"] == "CAD"
+    assert any(event[0]["eventType"] == "ORDER_RISK_CHECKED" for event in audit.events)
     assert any(event[0]["eventType"] == "ORDER_ACCEPTED" for event in audit.events)
+    assert any(event[0]["eventType"] == "ORDER_CONFIRMATION_SIMULATED" for event in audit.events)
 
 
 def test_idempotent_order_replay_returns_same_order():
@@ -163,6 +176,19 @@ def test_unknown_customer_returns_404_for_order():
     assert response.get_json()["code"] == "customer_not_found"
 
 
+def test_ineligible_customer_returns_403_and_audits():
+    audit = Audit()
+    response = make_app(customers=Customers(status="PENDING"), audit=audit).test_client().post(
+        "/v1/orders",
+        json=order_payload(),
+        headers={"Idempotency-Key": "order-ineligible"},
+    )
+
+    assert response.status_code == 403
+    assert response.get_json()["code"] == "customer_not_eligible"
+    assert any(event[0]["eventType"] == "ORDER_ELIGIBILITY_FAILED" for event in audit.events)
+
+
 def test_unknown_offer_returns_404_for_order():
     response = make_app(offers=Offers(exists=False)).test_client().post(
         "/v1/orders",
@@ -183,3 +209,32 @@ def test_inactive_offer_returns_409_for_order():
 
     assert response.status_code == 409
     assert response.get_json()["code"] == "offer_inactive"
+
+
+def test_high_risk_customer_blocks_order_and_audits():
+    audit = Audit()
+    response = make_app(customers=Customers(risk_level="HIGH"), audit=audit).test_client().post(
+        "/v1/orders",
+        json=order_payload(),
+        headers={"Idempotency-Key": "order-risk"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "order_blocked_high_risk"
+    assert any(event[0]["eventType"] == "ORDER_RISK_CHECKED" for event in audit.events)
+    assert any(event[0]["eventType"] == "ORDER_BLOCKED_RISK" for event in audit.events)
+
+
+def test_change_plan_requires_line_id_as_phase1_compatibility_check():
+    audit = Audit()
+    payload = order_payload()
+    payload["orderType"] = "CHANGE_PLAN"
+    response = make_app(audit=audit).test_client().post(
+        "/v1/orders",
+        json=payload,
+        headers={"Idempotency-Key": "order-change-plan"},
+    )
+
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "order_incompatible"
+    assert any(event[0]["eventType"] == "ORDER_COMPATIBILITY_FAILED" for event in audit.events)

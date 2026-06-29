@@ -21,6 +21,8 @@ class MysqlLineRepository:
                       supi VARCHAR(48) NOT NULL,
                       status VARCHAR(40) NOT NULL,
                       hlr_status VARCHAR(40) NOT NULL,
+                      number_mode VARCHAR(20) NOT NULL DEFAULT 'NEW',
+                      portability_status VARCHAR(40) NULL,
                       failure_reason VARCHAR(255) NULL,
                       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -32,8 +34,22 @@ class MysqlLineRepository:
                     )
                     """
                 )
+                self._ensure_column(cursor, "service_lines", "number_mode", "VARCHAR(20) NOT NULL DEFAULT 'NEW'")
+                self._ensure_column(cursor, "service_lines", "portability_status", "VARCHAR(40) NULL")
             conn.commit()
         self._schema_checked = True
+
+    def _ensure_column(self, cursor, table_name, column_name, definition):
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS count
+            FROM INFORMATION_SCHEMA.COLUMNS
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = %s AND COLUMN_NAME = %s
+            """,
+            (table_name, column_name),
+        )
+        if cursor.fetchone()["count"] == 0:
+            cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}")
 
     def create(self, line):
         self.ensure_schema()
@@ -43,8 +59,8 @@ class MysqlLineRepository:
                     """
                     INSERT INTO service_lines
                     (line_id, customer_id, offer_id, msisdn, sim_type, sim_identifier,
-                     imsi, supi, status, hlr_status, failure_reason)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                     imsi, supi, status, hlr_status, number_mode, portability_status, failure_reason)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         line.line_id,
@@ -57,6 +73,8 @@ class MysqlLineRepository:
                         line.supi,
                         line.status,
                         line.hlr_status,
+                        line.number_mode,
+                        line.portability_status,
                         line.failure_reason,
                     ),
                 )

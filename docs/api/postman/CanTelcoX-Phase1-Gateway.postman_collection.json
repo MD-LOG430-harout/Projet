@@ -1,0 +1,629 @@
+{
+  "info": {
+    "name": "CanTelcoX Phase 1 - API Gateway",
+    "_postman_id": "9bf3de49-65ee-4f79-a6c9-6db4a43235ff",
+    "description": "Gateway-only Postman collection for Phase 1 evidence. All CanTelcoX API calls go through NGINX at {{baseUrl}}. Folders are grouped by implemented UC/service.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:8080" },
+    { "key": "traceId", "value": "postman-phase1-demo" },
+    { "key": "email", "value": "postman-demo@example.test" },
+    { "key": "password", "value": "Stronger123" },
+    { "key": "customerId", "value": "" },
+    { "key": "challengeId", "value": "" },
+    { "key": "devOtp", "value": "" },
+    { "key": "sessionToken", "value": "" },
+    { "key": "offerId", "value": "forfait-5g-20gb" },
+    { "key": "idempotencyKey", "value": "postman-activation-demo-001" },
+    { "key": "portInIdempotencyKey", "value": "postman-portin-demo-001" },
+    { "key": "portInMsisdn", "value": "14385551234" },
+    { "key": "orderIdempotencyKey", "value": "postman-order-demo-001" },
+    { "key": "paymentIdempotencyKey", "value": "postman-payment-demo-001" },
+    { "key": "orderId", "value": "" },
+    { "key": "activationId", "value": "" },
+    { "key": "lineId", "value": "" },
+    { "key": "msisdn", "value": "" },
+    { "key": "invoiceId", "value": "" },
+    { "key": "paymentId", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "UC-01 - Clients & Identite",
+      "item": [
+        {
+          "name": "Register customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('customerId', json.customerId);",
+                  "pm.test('customer active and verified', function () {",
+                  "  pm.expect(json.status).to.eql('ACTIVE');",
+                  "  pm.expect(json.identityStatus).to.eql('VERIFIED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"displayName\": \"Postman Demo\",\n  \"legalName\": \"Postman Demo\",\n  \"customerType\": \"individual\",\n  \"address\": {\n    \"line1\": \"123 Rue Test\",\n    \"city\": \"Montreal\",\n    \"province\": \"QC\",\n    \"postalCode\": \"H1A1A1\"\n  },\n  \"identityDocument\": {\n    \"type\": \"driver_license\",\n    \"number\": \"D1234567\",\n    \"issuingProvince\": \"QC\",\n    \"expiryDate\": \"2030-12-31\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/customers/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "customers", "register"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "UC-02 - Authentification & MFA",
+      "item": [
+        {
+          "name": "Login and create MFA challenge",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('202 MFA required', function () { pm.response.to.have.status(202); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('challengeId', json.challengeId);",
+                  "pm.collectionVariables.set('devOtp', json.devOtp);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "login"]
+            }
+          }
+        },
+        {
+          "name": "Verify MFA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 authenticated', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('sessionToken', json.sessionToken);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"challengeId\": \"{{challengeId}}\",\n  \"otp\": \"{{devOtp}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/auth/mfa/verify",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "auth", "mfa", "verify"]
+            }
+          }
+        },
+        {
+          "name": "Protected customer lookup",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 customer lookup', function () { pm.response.to.have.status(200); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/customers/{{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "customers", "{{customerId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "UC-05 - Prise de commande",
+      "item": [
+        {
+          "name": "Consult active offers",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 active offers', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.test('offers returned', function () { pm.expect(json.offers.length).to.be.above(0); });",
+                  "pm.collectionVariables.set('offerId', json.offers[0].offerId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/offers",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "offers"]
+            }
+          }
+        },
+        {
+          "name": "Create order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 order created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('orderId', json.orderId);",
+                  "pm.test('order accepted', function () {",
+                  "  pm.expect(json.status).to.eql('ACCEPTED');",
+                  "  pm.expect(json.orchestrationStatus).to.eql('READY_FOR_ACTIVATION');",
+                  "  pm.expect(json.confirmationStatus).to.eql('SIMULATED_SENT');",
+                  "  pm.expect(json.offerId).to.eql(pm.collectionVariables.get('offerId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{orderIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"offerId\": \"{{offerId}}\",\n  \"quantity\": 1,\n  \"orderType\": \"NEW_PLAN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "orders"]
+            }
+          }
+        },
+        {
+          "name": "Replay order with same Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 replayed order', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.test('same order result', function () {",
+                  "  pm.expect(json.orderId).to.eql(pm.collectionVariables.get('orderId'));",
+                  "  pm.expect(json.status).to.eql('ACCEPTED');",
+                  "  pm.expect(json.orchestrationStatus).to.eql('READY_FOR_ACTIVATION');",
+                  "  pm.expect(json.confirmationStatus).to.eql('SIMULATED_SENT');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{orderIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"offerId\": \"{{offerId}}\",\n  \"quantity\": 1,\n  \"orderType\": \"NEW_PLAN\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/orders",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "orders"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "UC-03 - Activation d'une ligne",
+      "item": [
+        {
+          "name": "Get active offer",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/offers/{{offerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "offers", "{{offerId}}"]
+            }
+          }
+        },
+        {
+          "name": "Activate line",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 activation created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('activationId', json.activationId);",
+                  "pm.collectionVariables.set('lineId', json.lineId);",
+                  "pm.collectionVariables.set('msisdn', json.msisdn);",
+                  "pm.test('line active and provisioned', function () {",
+                  "  pm.expect(json.status).to.eql('ACTIVE');",
+                  "  pm.expect(json.hlrStatus).to.eql('PROVISIONED');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"offerId\": \"{{offerId}}\",\n  \"simType\": \"ESIM\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/activations",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "activations"]
+            }
+          }
+        },
+        {
+          "name": "Replay activation with same Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 replayed activation', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.test('same activation result', function () {",
+                  "  pm.expect(json.activationId).to.eql(pm.collectionVariables.get('activationId'));",
+                  "  pm.expect(json.lineId).to.eql(pm.collectionVariables.get('lineId'));",
+                  "  pm.expect(json.msisdn).to.eql(pm.collectionVariables.get('msisdn'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"offerId\": \"{{offerId}}\",\n  \"simType\": \"ESIM\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/activations",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "activations"]
+            }
+          }
+        },
+        {
+          "name": "Activate line with simulated portability",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 port-in activation created', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('activationId', json.activationId);",
+                  "pm.collectionVariables.set('lineId', json.lineId);",
+                  "pm.collectionVariables.set('msisdn', json.msisdn);",
+                  "pm.test('portability accepted', function () {",
+                  "  pm.expect(json.numberMode).to.eql('PORT_IN');",
+                  "  pm.expect(json.portabilityStatus).to.eql('ACCEPTED');",
+                  "  pm.expect(json.msisdn).to.eql(pm.collectionVariables.get('portInMsisdn'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{portInIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"offerId\": \"{{offerId}}\",\n  \"simType\": \"ESIM\",\n  \"numberMode\": \"PORT_IN\",\n  \"msisdn\": \"{{portInMsisdn}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/activations",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "activations"]
+            }
+          }
+        },
+        {
+          "name": "Get activated line",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/lines/{{lineId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "lines", "{{lineId}}"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "UC-06 - Paiement de facture",
+      "item": [
+        {
+          "name": "Consult invoices by customer",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 invoices', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.test('invoice returned', function () { pm.expect(json.invoices.length).to.be.above(0); });",
+                  "pm.collectionVariables.set('invoiceId', json.invoices[0].invoiceId);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/invoices?customerId={{customerId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "invoices"],
+              "query": [
+                { "key": "customerId", "value": "{{customerId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get invoice by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 invoice detail', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.test('invoice is open before payment', function () { pm.expect(['OPEN', 'PAID']).to.include(json.status); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "invoices", "{{invoiceId}}"]
+            }
+          }
+        },
+        {
+          "name": "Pay invoice",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 payment accepted', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.collectionVariables.set('paymentId', json.paymentId);",
+                  "pm.test('invoice paid', function () { pm.expect(json.invoiceStatus).to.eql('PAID'); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"paymentMethod\": \"SIMULATED_CARD\",\n  \"amount\": 49.99,\n  \"currency\": \"CAD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "invoices", "{{invoiceId}}", "payments"]
+            }
+          }
+        },
+        {
+          "name": "Replay payment with same Idempotency-Key",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('201 replayed payment', function () { pm.response.to.have.status(201); });",
+                  "var json = pm.response.json();",
+                  "pm.test('same payment result', function () {",
+                  "  pm.expect(json.paymentId).to.eql(pm.collectionVariables.get('paymentId'));",
+                  "  pm.expect(json.invoiceStatus).to.eql('PAID');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
+              { "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"customerId\": \"{{customerId}}\",\n  \"paymentMethod\": \"SIMULATED_CARD\",\n  \"amount\": 49.99,\n  \"currency\": \"CAD\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}/payments",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "invoices", "{{invoiceId}}", "payments"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Conformite & Audit",
+      "item": [
+        {
+          "name": "Find audit events by TraceId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 audit trace', function () { pm.response.to.have.status(200); });",
+                  "var json = pm.response.json();",
+                  "pm.test('events returned for trace', function () { pm.expect(json.events.length).to.be.above(0); });"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/audit-events?traceId={{traceId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "audit-events"],
+              "query": [
+                { "key": "traceId", "value": "{{traceId}}" }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Append manual audit event",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "TraceId", "value": "{{traceId}}" },
+              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventType\": \"POSTMAN_DEMO_EVENT\",\n  \"actorId\": \"{{customerId}}\",\n  \"customerId\": \"{{customerId}}\",\n  \"resourceId\": \"{{activationId}}\",\n  \"sourceService\": \"postman-demo\",\n  \"result\": \"SUCCESS\",\n  \"metadata\": {\n    \"lineId\": \"{{lineId}}\",\n    \"msisdn\": \"{{msisdn}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/v1/audit-events",
+              "host": ["{{baseUrl}}"],
+              "path": ["v1", "audit-events"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

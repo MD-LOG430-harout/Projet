@@ -82,14 +82,14 @@ This repository currently implements the Phase 1 functional slices selected from
 - `svc-conformite-audit` for append-only audit events.
 - `svc-catalogue-offres` for minimal UC-03 offer validation.
 - `svc-lignes-services` for UC-03 line/MSISDN/SIM/eSIM state and HLR/free5GC adapter boundary.
-- `svc-commandes-activations` for UC-03 activation orchestration, UC-05 minimal order creation, and `Idempotency-Key`.
+- `svc-commandes-activations` for UC-03 activation orchestration, UC-05 controlled order creation/validation, and `Idempotency-Key`.
 - `svc-usage-facturation` for UC-06 invoice lookup and invoice payment.
 - NGINX API Gateway routing public `/v1` endpoints.
 - MySQL schemas for customers, MFA challenges, audit events, catalogue offers, lines, activations, orders, invoices, and payments.
 - Prometheus and Grafana basics for `/metrics`.
 - OpenAPI draft at `docs/api/openapi.yaml`.
 
-UC-04 usage consultation, UC-07 full fraud detection, and UC-08 monthly billing are intentionally excluded from this Phase 1 implementation. UC-05 is intentionally minimal: it creates and validates an accepted order, but does not implement full ecommerce/cart complexity and does not automatically trigger UC-03 activation.
+UC-04 usage consultation, UC-07 full fraud detection, and UC-08 monthly billing are intentionally excluded from this Phase 1 implementation. UC-05 is implemented for Phase 1 as a controlled order creation and validation workflow: offer consultation, customer validation, active offer validation, simple eligibility checks, risk placeholder, simple compatibility validation, order persistence, idempotency, auditability, and simulated confirmation. Full plan change execution, option lifecycle, notification retry, and advanced fraud/compatibility rules are documented as future work.
 
 ## Phase 1 Scope and Grading Evidence
 
@@ -100,10 +100,10 @@ The official Phase 1 scope is tracked in [docs/architecture/phase1-scope-and-gra
 | UC-01 Inscription & verification d'identite | Implemented in `svc-clients-identite` with audit events |
 | UC-02 Authentification & MFA | Implemented in `svc-clients-identite` with MFA challenge verification |
 | UC-03 Activation d'une ligne | Implemented as activation orchestration using `svc-commandes-activations`, `svc-catalogue-offres`, `svc-lignes-services`, the HLR/free5GC adapter port, and audit |
-| UC-05 Prise de commande | Implemented minimally in `svc-commandes-activations` with customer/offer validation, order idempotency, and audit |
+| UC-05 Prise de commande | Implemented as Phase 1 order validation with offer consultation, eligibility/risk placeholders, accepted order persistence, idempotency, audit, and simulated confirmation |
 | UC-06 Paiement de facture | Implemented in `svc-usage-facturation` with simulated gateway and payment idempotency |
 
-UC-03 is implemented as activation orchestration. UC-05 creates the accepted order as a separate Phase 1 command; full order-to-activation orchestration is documented as a future improvement. UC-04 is out of official report scope and is not exposed as an official API. UC-07 is limited to audit/risk placeholders required by implemented flows. UC-08 is out of scope for implementation.
+UC-03 is implemented as activation orchestration. UC-05 creates the accepted order as a separate Phase 1 command with `orchestrationStatus=READY_FOR_ACTIVATION`; full automatic order-to-activation orchestration is documented as a future improvement. UC-04 is out of official report scope and is not exposed as an official API. UC-07 is limited to audit/risk placeholders required by implemented flows. UC-08 is out of scope for implementation.
 
 The detailed UC-03 alternative-path coverage matrix is documented in [docs/architecture/uc03-activation-scope.md](docs/architecture/uc03-activation-scope.md).
 
@@ -220,7 +220,14 @@ curl -i http://localhost:8080/v1/offers/forfait-5g-20gb \
   -H "Authorization: Bearer <session-token>"
 ```
 
-Create a minimal UC-05 order with idempotency:
+Consult active offers for UC-05:
+
+```bash
+curl -i http://localhost:8080/v1/offers \
+  -H "Authorization: Bearer <session-token>"
+```
+
+Create a Phase 1 UC-05 order with idempotency:
 
 ```bash
 curl -i -X POST http://localhost:8080/v1/orders \
@@ -228,10 +235,10 @@ curl -i -X POST http://localhost:8080/v1/orders \
   -H "Authorization: Bearer <session-token>" \
   -H "Idempotency-Key: demo-order-1" \
   -H "TraceId: demo-order-1" \
-  -d "{\"customerId\":\"<customer-id>\",\"offerId\":\"forfait-5g-20gb\",\"quantity\":1,\"orderType\":\"MOBILE_PLAN_SUBSCRIPTION\"}"
+  -d "{\"customerId\":\"<customer-id>\",\"offerId\":\"forfait-5g-20gb\",\"quantity\":1,\"orderType\":\"NEW_PLAN\"}"
 ```
 
-Repeat the exact same order request with the same `Idempotency-Key`; it returns the same `orderId` and does not create another order. UC-05 intentionally stops at accepted order creation. UC-03 activation remains a separate command in this Phase 1 implementation.
+Repeat the exact same order request with the same `Idempotency-Key`; it returns the same `orderId` and does not create another order. UC-05 returns `orchestrationStatus=READY_FOR_ACTIVATION` and `confirmationStatus=SIMULATED_SENT`. UC-03 activation remains a separate command in this Phase 1 implementation.
 
 Activate a line with idempotency:
 
@@ -245,6 +252,8 @@ curl -i -X POST http://localhost:8080/v1/activations \
 ```
 
 Repeat the exact same request with the same `Idempotency-Key`; it returns the same activation body and does not create another line.
+
+For UC-03, `numberMode` controls the number choice. `NEW` assigns or accepts a non-portability MSISDN, while `PORT_IN` simulates keeping an existing number by requiring `msisdn` and recording `portabilityStatus=ACCEPTED`. This is a Phase 1 portability simulation, not a full portability hub with refusal or pending flows.
 
 Retrieve the activated line:
 

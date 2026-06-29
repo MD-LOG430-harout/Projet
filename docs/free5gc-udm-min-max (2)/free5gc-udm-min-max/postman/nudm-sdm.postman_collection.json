@@ -1,0 +1,117 @@
+{
+  "info": {
+    "name": "free5GC - Nudm_SDM (UDM)",
+    "description": "Requetes SBI Nudm_SDM (3GPP TS 29.503) vers l'UDM free5GC.\n\nPrerequis :\n- la stack tourne (docker-compose.udm-min.yaml), UDM publiee sur localhost:8000\n- un abonne a ete cree dans la WebUI (SUPI = imsi-208930000000001)\n\nATTENTION HTTP/2 : l'UDM free5GC parle HTTP/2 cleartext (h2c). Active le HTTP/2\ndans Postman (Settings -> General -> HTTP version) ; si ca echoue, teste avec\n`curl --http2-prior-knowledge`.\n\nLes variables (baseUrl, supi, plmnId) sont definies au niveau de la collection.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "supi",
+      "value": "imsi-208930000000001",
+      "type": "string"
+    },
+    {
+      "key": "plmnId",
+      "value": "{\"mcc\":\"208\",\"mnc\":\"93\"}",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "AM Data (Access & Mobility)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/nudm-sdm/v2/{{supi}}/am-data?plmn-id={{plmnId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "nudm-sdm", "v2", "{{supi}}", "am-data" ],
+          "query": [
+            { "key": "plmn-id", "value": "{{plmnId}}" }
+          ]
+        },
+        "description": "Donnees Access & Mobility de l'abonne. GET /nudm-sdm/v2/{supi}/am-data"
+      }
+    },
+    {
+      "name": "SM Data (Session Management)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/nudm-sdm/v2/{{supi}}/sm-data?plmn-id={{plmnId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "nudm-sdm", "v2", "{{supi}}", "sm-data" ],
+          "query": [
+            { "key": "plmn-id", "value": "{{plmnId}}" }
+          ]
+        },
+        "description": "Donnees Session Management (profils de session) de l'abonne."
+      }
+    },
+    {
+      "name": "SMF Selection Data",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/nudm-sdm/v2/{{supi}}/smf-select-data?plmn-id={{plmnId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "nudm-sdm", "v2", "{{supi}}", "smf-select-data" ],
+          "query": [
+            { "key": "plmn-id", "value": "{{plmnId}}" }
+          ]
+        },
+        "description": "Donnees de selection du SMF pour l'abonne."
+      }
+    },
+    {
+      "name": "NSSAI (Network Slice Selection)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/nudm-sdm/v2/{{supi}}/nssai?plmn-id={{plmnId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "nudm-sdm", "v2", "{{supi}}", "nssai" ],
+          "query": [
+            { "key": "plmn-id", "value": "{{plmnId}}" }
+          ]
+        },
+        "description": "NSSAI souscrites (slices reseau) de l'abonne."
+      }
+    },
+    {
+      "name": "Subscription Data Sets (multiple)",
+      "request": {
+        "method": "GET",
+        "header": [
+          { "key": "Accept", "value": "application/json" }
+        ],
+        "url": {
+          "raw": "{{baseUrl}}/nudm-sdm/v2/{{supi}}?dataset-names=AM,SM&plmn-id={{plmnId}}",
+          "host": [ "{{baseUrl}}" ],
+          "path": [ "nudm-sdm", "v2", "{{supi}}" ],
+          "query": [
+            { "key": "dataset-names", "value": "AM,SM" },
+            { "key": "plmn-id", "value": "{{plmnId}}" }
+          ]
+        },
+        "description": "Recupere plusieurs jeux de donnees en une requete. 'dataset-names' est OBLIGATOIRE et doit contenir AU MOINS 2 valeurs (DataSetId : AM, SM, SMF_SEL, UEC_SMF, SMS_SUB, ...)."
+      }
+    }
+  ]
+}

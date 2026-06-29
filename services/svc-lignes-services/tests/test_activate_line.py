@@ -65,7 +65,48 @@ def test_activate_line_assigns_msisdn_and_marks_active():
     assert body["status"] == "ACTIVE"
     assert body["hlrStatus"] == "PROVISIONED"
     assert body["msisdn"]
+    assert body["numberMode"] == "NEW"
+    assert body["portabilityStatus"] is None
     assert hlr.calls[0][1] == "trace-uc03"
+
+
+def test_activate_line_accepts_simulated_portability_with_existing_number():
+    app = create_app(Lines(), Hlr())
+    response = app.test_client().post(
+        "/v1/lines/activate",
+        json={
+            "customerId": "cust-1",
+            "offerId": "forfait-5g-20gb",
+            "simType": "ESIM",
+            "numberMode": "PORT_IN",
+            "msisdn": "14385551234",
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["status"] == "ACTIVE"
+    assert body["msisdn"] == "14385551234"
+    assert body["numberMode"] == "PORT_IN"
+    assert body["portabilityStatus"] == "ACCEPTED"
+
+
+def test_activate_line_requires_msisdn_for_simulated_portability():
+    app = create_app(Lines(), Hlr())
+    response = app.test_client().post(
+        "/v1/lines/activate",
+        json={
+            "customerId": "cust-1",
+            "offerId": "forfait-5g-20gb",
+            "simType": "ESIM",
+            "numberMode": "PORT_IN",
+        },
+    )
+
+    assert response.status_code == 400
+    body = response.get_json()
+    assert body["code"] == "validation_error"
+    assert body["details"]["field"] == "msisdn"
 
 
 def test_activate_line_returns_503_when_hlr_fails():

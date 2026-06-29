@@ -1,0 +1,563 @@
+L O G 4 3 0
+Architecture logicielle — Été 2026
+Phase 1 — Architecture basée par services
+(microservices)
+Dossier d’architecture — gabarit Arc42 + vues 4+1 + ADR
+Projet CanTelcoX — Système de support commercial (BSS) télécom
+
+ 
+Équipe / N° d’équipe[À compléter — nom d’équipe et numéro]Membres (nom, code permanent)[À compléter — liste des membres]Cours / GroupeLOG430 — Groupe 01SessionÉté 2026Date de remise30 juin 2026, 23 h 59 (Moodle)Version du documentv1.0 — 2026-06-30
+École de technologie supérieure — Département de génie logiciel et des TI
+Sommaire
+Mettez à jour le sommaire dans Word (clic droit ? « Mettre à jour les champs ») une fois le document complété.
+Sommaire	1
+Comment utiliser ce gabarit	1
+Correspondance Tâches de l’énoncé ? Sections du document	1
+1. Introduction et objectifs	1
+1.1 Aperçu des exigences	1
+1.2 Cas d’utilisation Must (MoSCoW)	1
+1.3 Objectifs de qualité	1
+1.4 Parties prenantes	1
+2. Contraintes d’architecture	1
+2.1 Contraintes techniques	1
+2.2 Contraintes réglementaires & conformité	1
+2.3 Contraintes organisationnelles & conventions	1
+3. Contexte et périmètre	1
+3.1 Contexte métier	1
+3.2 Contexte technique	1
+3.3 Cartographie du domaine (DDD)	1
+4. Stratégie de solution	1
+4.1 Style architectural & découpage en services	1
+4.2 Communication inter-services	1
+4.3 Stratégie de l’API REST	1
+4.4 Référence industrielle TMF (optionnelle)	1
+5. Vue des blocs de construction	1
+5.1 Niveau 1 — Décomposition en services	1
+5.2 Niveau 2 — Structure interne d’un service (hexagonal)	1
+5.3 Modèle de domaine	1
+5.4 Organisation du code (vue Développement)	1
+6. Vue d’exécution	1
+6.1 Scénario bout-en-bout (E2E)	1
+6.2 Authentification & MFA (UC-02)	1
+6.3 Idempotence & exactly-once à l’exécution	1
+7. Vue de déploiement	1
+7.1 Topologie de déploiement	1
+7.2 API Gateway	1
+7.3 Load balancing & tolérance aux pannes	1
+8. Concepts transversaux	1
+8.1 Persistance & intégrité	1
+8.2 Idempotence (commandes & activations)	1
+8.3 Exactly-once (facturation)	1
+8.4 Journal d’audit append-only (CRTC / Loi 25)	1
+8.5 Sécurité applicative	1
+8.6 Contrôles anti-fraude	1
+8.7 Gestion d’erreurs & versionnement	1
+8.8 Observabilité (4 Golden Signals)	1
+8.9 Caching	1
+9. Décisions d’architecture (ADR)	1
+ADR-001 — Style architectural & découpage en services	1
+ADR-002 — Persistance & transactions (idempotence / exactly-once / append-only)	1
+ADR-003 — Stratégie d’erreurs & versionnement d’API	1
+10. Exigences de qualité	1
+10.1 Arbre de qualité	1
+10.2 Scénarios de qualité	1
+10.3 Cibles NFR & résultats	1
+10.4 Stratégie de tests & couverture	1
+10.5 Résultats des campagnes de charge	1
+10.6 Load balancing (N = 1..4) & tolérance aux pannes	1
+10.7 Caching (on / off)	1
+10.8 Appels directs vs via Gateway	1
+11. Risques et dette technique	1
+12. Glossaire	1
+12.1 Langage métier	1
+12.2 Acronymes	1
+Annexe A — Contrats d’API & catalogue d’endpoints	1
+Annexe B — Schéma de persistance	1
+Annexe C — CI/CD, conteneurisation & exploitation	1
+Annexe D — Traçabilité, Définition de Fini & auto-évaluation	1
+D.1 Matrice de traçabilité (livrables & critères d’acceptation)	1
+D.2 Définition de Fini (DoD)	1
+D.3 Auto-évaluation (grille de l’énoncé)	1
+Annexe E — Soutenance et démonstration (20 %)	1
+E.1 Déroulé attendu	1
+E.2 Grille de soutenance	1
+E.3 Plan de soutenance (à préparer)	1
+
+Comment utiliser ce gabarit
+Ce gabarit structure le dossier d’architecture de la Phase 1 selon le modèle Arc42 (sections 1 à 12) et y intègre les cinq vues 4+1. Chaque section rappelle, dans une boîte « Repères de l’énoncé », les tâches concernées, les livrables attendus et les critères d’acceptation (CA) à cocher. Remplacez chaque mention [À compléter — …] par votre contenu, insérez vos diagrammes là où indiqué, puis cochez les CA au fur et à mesure.
+Conventions
+• Texte en gris entre crochets = consigne à remplacer par votre contenu.
+• Cases ? = critères d’acceptation de l’énoncé ; cochez-les lorsque la preuve est dans le dépôt ou le rapport.
+• Insérez les diagrammes (PlantUML, Mermaid, draw.io…) sous forme d’images exportées ; nommez-les et numérotez les figures.
+• Le dossier final est remis en PDF ; ce gabarit Word sert de source. Visez la reproductibilité < 30 min sur la VM.
+• Le gabarit est une structure minimale, pas un plafond : ajoutez toute sous-section ou tout contenu pertinent demandé par l’énoncé. Les justifications de décisions (« pourquoi ce choix plutôt qu’un autre ») vont en priorité dans les ADR (§9) et la colonne « Justification (? ADR) » du §4 ; les sections descriptives (§1–§8) présentent surtout l’architecture retenue.
+Correspondance Tâches de l’énoncé ? Sections du document
+Tableau de navigation : où documenter chaque tâche du devoir. La matrice de traçabilité détaillée (avec statut) figure en Annexe D.
+Tâche (énoncé)Où la documenter1.1 Cas d’utilisation Must (MoSCoW)§1 Introduction & objectifs · §10 Scénarios de qualité1.2 Cartographie DDD§3 Carte des contextes · §5 Modèle de domaine · §12 Glossaire2.1 Découpage microservices§4 Stratégie de solution · §5 Vue des blocs2.2 Couche API REST§4.4 · Annexe A (contrats OpenAPI/Postman)2.3 Documentation 4+1 + Arc42Ensemble du document2.4 ADR (? 3)§9 Décisions d’architecture3.1 Schéma de persistance§8.1 · Annexe B (ER/UML, migrations, seeds)3.2 Persistance & intégrité§8.1–8.4 · Annexe B4.1 Domaine & services applicatifs§5.3 Modèle de domaine4.2 Ports/adapters§3.2 Contexte technique · §5.2 Structure interne4.3 API REST publique (E2E)§6 Vue d’exécution · Annexe A4.4 Sécurité applicative§8.5 Sécurité · §8.6 Anti-fraude5.1 Observabilité§8.8 · §10.5 (dashboards)5.2 Tests de charge§10.55.3 Load balancing§7.3 · §10.65.4 Caching§8.9 · §10.76.1 API Gateway§7.26.2 Direct vs Gateway§10.87.1 Stratégie de tests§10.47.2 Sécurité & gestion d’erreurs§8.5–8.78.1–8.3 CI/CD & conteneurisation§7.1 · Annexe C9.1 Documentation finaleEnsemble · Annexe C (runbook)9.2 Rapport comparatif§10.6–10.81. Introduction et objectifs
+Objectif Arc42 — Présenter le système, ses objectifs métier essentiels, les objectifs de qualité prioritaires et les parties prenantes.
+Repères de l’énoncé
+Tâches de l’énoncé : 1.1 Clarifier le périmètre & cas d’utilisation Must.
+Vue 4+1 : Scénarios (cas d’utilisation).
+Livrables attendus :
+• UC textuels (scénario principal + alternatifs) pour ? 5 UC Must.
+• Priorisation MoSCoW alignée sur les domaines du cahier.
+Critères d’acceptation (à cocher)
+?  ? 5 UC Must (parmi UC-01 à UC-08) entièrement décrits et validés.
+?  Priorisation MoSCoW justifiée et matrice de traçabilité UC ? domaines complétée.
+
+1.1 Aperçu des exigences
+CanTelcoX, opérateur mobile canadien fictif, déploie un BSS moderne pour abonnés particuliers et PME couvrant le cycle de vie des lignes mobiles : souscription, activation, consultation d’usage, prise de commande de forfaits/options, paiement de facture et conformité réglementaire.
+[À compléter — résumez en 1 paragraphe la mission du système et le périmètre de la Phase 1]
+La plateforme doit exposer ces capacités par une API REST sécurisée et documentée, orchestrée par une API Gateway, tout en s’intégrant à des infrastructures télécoms simulées telles que le réseau mobile, la portabilité, la passerelle de paiement et la médiation d’usage. L’architecture doit aussi soutenir les exigences de disponibilité, performance, sécurité, auditabilité et conformité réglementaire.
+1.2 Cas d’utilisation Must (MoSCoW)
+Catalogue de référence des UC du cahier :
+UCIntituléPriorité MoSCoWUC-01Inscription & vérification d’identitéMustUC-02Authentification & MFAMustUC-03Activation d’une ligneMustUC-04Consultation usage / facturesOptionalUC-05Prise de commandeMustUC-06Paiement de factureMustUC-07Détection de fraudeOptionalUC-08Cycle de facturation mensuelOptionalJustification de la priorisation MoSCoW
+[À compléter — expliquez en 1 paragraphe pourquoi ces UC sont « Must » : valeur métier, dépendances, exigences réglementaires, périmètre minimal viable. Mentionnez aussi, le cas échéant, les UC Should/Could/Won’t écartés et la raison.]
+Ces cas d’utilisation sont priorisés comme Must puisqu’ils représentent le périmètre minimal viable du BSS CanTelcoX. Ensemble, ils couvrent le cycle de vie essentiel d’un abonné mobile: création et vérification de l’identité, authentification sécurisée, activation d’une ligne, commande de forfaits ou d’options, consultation de l’usage, facturation et paiement. Ils sont également liés à des exigences critiques du domaine télécom canadien, notamment la sécurité des activations, la prévention de la fraude, l’auditabilité des opérations et la conformité réglementaire. Sans ces fonctionnalités, la plateforme ne pourrait pas fournir un service commercial complet ni démontrer les qualités architecturales attendues en Phase 1, comme la disponibilité, la performance, la sécurité et la traçabilité. Les fonctionnalités de type Should, Could ou Won’t sont donc reportées ou exclues de cette phase lorsqu’elles ne sont pas nécessaires au fonctionnement minimal du BSS ou à la démonstration des objectifs architecturaux prioritaires.
+Matrice de traçabilité UC ? domaines du cahier (bounded contexts)
+Cochez (?) le ou les domaines couverts par chaque UC, pour démontrer l’alignement avec le cahier. Ajustez selon les UC réellement retenus.
+UCClients & IdentitéLignes & ServicesCommandes & ActivationsCatalogue & OffresUsage / FacturationConformité & AuditUC-01 Inscription & identité??UC-02 Authentification & MFA??UC-03 Activation d’une ligne????UC-04 Consultation usage / factures??UC-05 Prise de commande????UC-06 Paiement de facture??UC-07 Détection de fraude?????UC-08 Cycle de facturation??
+
+Détaillez ci-dessous les ? 5 UC retenus (un sous-bloc par UC) :
+ChampContenuUC retenuUC-01 — Inscription & vérification d’identitéActeursActeur principal: abonné particulier ou représentant PME. 
+Acteurs secondaires: Service Clients & Identité, service de vérification d’identité/KYC simulé, service de fraude/audit.PréconditionsL’abonné n’a pas encore de compte actif ou souhaite créer un nouveau profil client. Les services d’inscription, de validation d’identité et d’audit sont disponibles.Scénario principal1. L’abonné soumet ses informations personnelles ou d’entreprise.(regarder cahier de charge) 
+2. Le système valide les informations obligatoires.
+3. Le système crée un profil client au statut « Pending » avec un statut d’identité « non vérifié ».
+4. Le système déclenche une vérification d’identité simulée et fait passer le statut d’identité à « en cours ».
+5. L’abonné confirme son inscription via OTP/MFA.
+6. Le système reçoit le résultat de la vérification d’identité.
+7. Le système calcule ou reçoit un niveau de risque.
+8. Si la vérification est acceptée, que l’OTP/MFA est validé et que le risque est acceptable, le statut d’identité passe à « vérifié » et le profil client passe à « Active ».
+9. Un événement d’audit est enregistré avec horodatage, source et résultat.Scénarios alternatifs / exceptionsFA1 — Informations manquantes ou invalides: 2a.1 Le système détecte des informations obligatoires manquantes ou invalides. 2a.2 Le système refuse la demande d’inscription. 2a.3 Le système retourne une erreur de validation à l’abonné.
+FA2 — OTP/MFA invalide ou expiré: 5a.1 Le système détecte que le code OTP/MFA est invalide ou expiré. 5a.2 Le profil client reste au statut « Pending ». 5a.3 Le système permet une nouvelle tentative selon les règles de sécurité. 5a.4 La tentative échouée est journalisée.
+FA3 — Identité refusée: 6a.1 Le service de vérification retourne un statut « refusé ». 6a.2 Le profil client reste non activé. 6a.3 Le système journalise la raison du refus.
+FA4 — Risque élevé ou suspicion de fraude: 7a.1 Le système reçoit ou calcule un niveau de risque élevé. 7a.2 La demande est bloquée ou placée en révision manuelle. 7a.3 Une alerte de fraude est enregistrée dans le journal d’audit.
+FA5 — Service KYC ou OTP/MFA indisponible: 4a.1 Le service de vérification d’identité ou le service OTP/MFA est indisponible. 4a.2 Le profil reste au statut « Pending ». 4a.3 Le système permet une reprise ultérieure sans créer de doublon.Postconditions / règles métierUn profil client est créé uniquement si les données minimales sont valides. Le statut d’identité doit être conservé. Les vérifications doivent être journalisées avec horodatage, source et résultat. Les données sensibles doivent être protégées.
+
+ChampContenuUC retenuUC-02 — Authentification & MFAActeursActeur principal: abonné ou représentant PME. 
+Acteurs secondaires: Service d’identité, fournisseur MFA simulé, service Conformité & Audit.PréconditionsLe client possède un compte existant. Le compte n’est pas suspendu. Au moins un facteur MFA est configuré ou peut être généré.Scénario principal1. L’utilisateur saisit son identifiant et son mot de passe. 
+2. Le système valide les identifiants. 
+3. Le système évalue le niveau de risque de la connexion. 
+4. Le système demande un second facteur MFA. 
+5. L’utilisateur fournit le code OTP, WebAuthn ou autre facteur accepté. 
+6. Le système valide le MFA. 
+7. Une session sécurisée est créée. 
+8. L’événement de connexion est journalisé.Scénarios alternatifs / exceptionsFA1 — Identifiants invalides: 2a.1 Le système détecte que l’identifiant ou le mot de passe est invalide. 2a.2 Le système refuse l’accès. 2a.3 La tentative est journalisée.
+FA2 — MFA refusée ou expirée: 6a.1 Le système détecte que le code MFA est invalide, expiré ou refusé. 6a.2 Le système refuse la création de session. 6a.3 La tentative MFA échouée est journalisée.
+FA3 — Trop de tentatives échouées: 2b.1 Le système détecte plusieurs tentatives d’authentification échouées. 2b.2 Le compte est temporairement bloqué ou soumis à un délai de sécurité. 2b.3 Une alerte est enregistrée pour audit et détection de fraude.
+FA4 — Connexion à risque élevé: 3a.1 Le système détecte un contexte de connexion anormal ou risqué. 3a.2 Le système exige un facteur MFA renforcé. 3a.3 Si le facteur renforcé échoue, l’accès est refusé et l’événement est journalisé.Postconditions / règles métierUne session est créée uniquement après authentification et MFA réussis. Les tentatives importantes doivent être journalisées. Les actions sensibles peuvent exiger un facteur d’authentification plus fort.
+ChampContenuUC retenuUC-03 — Activation d’une ligneActeursActeur principal: abonné particulier, représentant PME ou agent back-office.
+Acteurs secondaires: Service Commandes & Activations, Service Lignes & Services, réseau simulé HLR/HSS/UDM, service fraude/audit.PréconditionsLe client est identifié et autorisé. Une commande valide existe. La ligne est en statut “Pending” ou équivalent. Les systèmes réseau simulés sont disponibles ou peuvent être appelés par reprise.Scénario principal1. Le système reçoit une demande d’activation de ligne associée à une commande. 
+2. Le service Commandes & Activations vérifie la commande, le forfait choisi et l’identité du client. 
+3. Le système vérifie que le niveau de risque du client est acceptable. 
+4. L’abonné indique s’il souhaite obtenir un nouveau numéro ou porter un numéro existant. 
+5. Si un nouveau numéro est demandé, le service Lignes & Services attribue un MSISDN disponible. 
+6. Si une portabilité est demandée, le système initie une demande de portabilité simulée auprès du hub de portabilité. 
+7. Le service Lignes & Services associe la ligne, le MSISDN et la SIM/eSIM au profil client. 
+8. Le système appelle l’adaptateur du réseau simulé HLR/HSS/UDM pour provisionner la ligne. 
+9. Le réseau simulé confirme le provisioning. 
+10. La ligne passe au statut “Active”. 
+11. La commande et l’activation sont journalisées dans le journal d’audit.Scénarios alternatifs / exceptionsFA1 — Commande inexistante ou invalide : 2a.1 Le système ne trouve pas de commande valide associée à la demande. 2a.2 L’activation est refusée. 2a.3 Le refus est journalisé. 
+FA2 — Risque élevé ou fraude détectée : 3a.1 Le système détecte un risque élevé ou une suspicion de fraude. 3a.2 L’activation est bloquée ou placée en révision manuelle. 3a.3 Une alerte est enregistrée dans le journal d’audit. 
+FA3 — Aucun MSISDN disponible: 5a.1 Le système ne trouve aucun numéro disponible pour l’attribution. 5a.2 L’activation est mise en attente ou refusée. 5a.3 La raison est journalisée. 
+FA4 — Portabilité refusée ou indisponible : 6a.1 Le hub de portabilité simulé refuse la demande ou ne répond pas. 6a.2 La ligne reste en statut “Pending” ou “PortabilityPending”. 6a.3 Le système conserve la demande pour reprise ou correction. 
+FA5 — SIM/eSIM invalide ou déjà utilisée : 7a.1 Le système détecte que la SIM/eSIM est invalide, inactive ou déjà associée à une autre ligne. 7a.2 L’activation est refusée. 7a.3 La raison du refus est journalisée. 
+FA6 — Échec du réseau simulé : 8a.1 Le réseau simulé HLR/HSS/UDM retourne une erreur ou ne répond pas. 8a.2 La ligne reste en statut “Pending” ou passe en statut “ActivationFailed”. 8a.3 Le système conserve la demande pour reprise ultérieure. 
+FA7 — Requête répétée : 1a.1 Le système reçoit une demande déjà traitée avec la même clé d’idempotence. 1a.2 Le système retourne le résultat déjà connu. 1a.3 Aucune nouvelle activation n’est déclenchée.Postconditions / règles métierUne ligne activée doit avoir un statut clair, une SIM/eSIM associée et une trace d’audit. L’activation ne doit pas être exécutée deux fois pour la même demande. Les transitions de statut doivent être conservées.
+ChampContenuUC retenuUC-05 — Prise de commandeActeursActeur principal: abonné particulier, représentant PME ou agent back-office.
+Acteurs secondaires: Service Catalogue & Offres, Service Commandes & Activations, Service Clients & Identité, service fraude/audit.PréconditionsLe client est authentifié ou identifié. Le catalogue contient au moins une offre active. Le client est admissible à l’offre choisie.Scénario principal1. L’utilisateur consulte les offres disponibles.
+2. L’utilisateur saisit une commande: nouveau forfait, changement de forfait ou option additionnelle.
+3. Le système vérifie l’éligibilité du client.
+4. Le système applique les contrôles anti-fraude.
+5. Le système vérifie la compatibilité de l’offre avec la ligne ou le profil client.
+6. Le système crée la commande.
+7. Le système exécute la commande ou déclenche son orchestration.
+8. Le profil de service de la ligne est mis à jour.
+9. Une confirmation est envoyée à l’abonné.
+10. Un événement de commande est enregistré et journalisé.Scénarios alternatifs / exceptionsFA1 — Offre inexistante ou retirée: 2a.1 Le système détecte que l’offre sélectionnée n’existe plus ou n’est plus active. 2a.2 La commande est refusée. 2a.3 Le système invite l’utilisateur à choisir une autre offre.
+FA2 — Client non admissible: 3a.1 Le système détecte que le client n’est pas admissible à l’offre. 3a.2 La commande est refusée. 3a.3 La raison du refus est journalisée.
+FA3 — Suspicion de fraude: 4a.1 Le système détecte un niveau de risque élevé pendant la prise de commande. 4a.2 La commande est bloquée ou placée en révision manuelle. 4a.3 Une alerte est enregistrée dans le journal d’audit.
+FA4 — Offre incompatible: 5a.1 Le système détecte que l’offre est incompatible avec la ligne, le type de compte ou une option existante. 5a.2 La commande est refusée. 5a.3 Le système affiche la cause d’incompatibilité.
+FA5 — Échec d’exécution ou de provisionnement: 7a.1 Le système ne parvient pas à exécuter la commande ou à provisionner le service. 7a.2 La commande passe au statut “Failed” ou “PendingRetry”. 7a.3 L’échec est journalisé et une reprise peut être planifiée.
+FA6 — Échec d’envoi de confirmation: 9a.1 La commande est exécutée, mais la confirmation ne peut pas être envoyée. 9a.2 Le système conserve la commande comme exécutée. 9a.3 Une reprise de notification est planifiée.
+FA7 — Doublon de commande: 6a.1 Le système reçoit une commande répétée avec la même clé d’idempotence. 6a.2 Le système retourne la commande déjà créée. 6a.3 Aucune nouvelle commande n’est créée.Postconditions / règles métierUne commande valide doit référencer le client, l’offre choisie et le statut de commande. Les commandes doivent être traçables. Une même demande ne doit pas créer plusieurs commandes identiques.
+ChampContenuUC retenuUC-06 — Paiement de factureActeursActeur principal: abonné particulier ou représentant PME.
+Acteurs secondaires: Service Usage / Facturation, passerelle de paiement simulée, service audit.PréconditionsL’utilisateur est authentifié. Une facture payable existe. La passerelle de paiement simulée est disponible ou le paiement peut être repris plus tard.Scénario principal1. L’utilisateur sélectionne une facture à payer.
+2. Le système vérifie le montant et le statut de la facture.
+3. L’utilisateur choisit un moyen de paiement.
+4. Le système transmet la demande à la passerelle de paiement simulée.
+5. La passerelle confirme le paiement.
+6. Le système marque la facture comme payée ou partiellement payée.
+7. Une confirmation de paiement est générée.
+8. L’événement de paiement est journalisé pour audit.Scénarios alternatifs / exceptionsFA1 — Facture inexistante ou non payable: 2a.1 Le système détecte que la facture n’existe pas, est annulée ou n’est pas payable. 2a.2 Le paiement est refusé. 2a.3 La raison du refus est affichée et journalisée.
+FA2 — Paiement refusé: 5a.1 La passerelle de paiement retourne un refus. 5a.2 La facture reste impayée. 5a.3 Le refus est journalisé.
+FA3 — Facture déjà payée: 2b.1 Le système détecte que la facture est déjà payée. 2b.2 Le système bloque le nouveau paiement. 2b.3 Le système retourne l’état actuel de la facture.
+FA4 — Timeout de la passerelle: 4a.1 La passerelle de paiement ne répond pas dans le délai prévu. 4a.2 Le paiement est placé en statut “en attente”. 4a.3 Le système conserve la transaction pour réconciliation ou reprise.
+FA5 — Requête répétée: 1a.1 Le système reçoit une demande de paiement répétée avec la même clé d’idempotence. 1a.2 Le système retourne le résultat de paiement déjà connu. 1a.3 Aucune nouvelle transaction de paiement n’est créée.Postconditions / règles métierUne facture ne doit pas être payée deux fois pour la même transaction. Les écritures de paiement doivent être traçables. Le statut de la facture doit être cohérent avec le résultat de paiement.
+1.3 Objectifs de qualité
+Les trois objectifs de qualité prioritaires (cibles NFR du cahier) :
+Objectif de qualitéScénario / motivationCible mesurablePerformanceRéactivité sous charge nominale (UC-04/05)Latence P95 ? 500 msDébit / capacitéSoutenir le trafic pic? 600 opérations/sDisponibilitéContinuité de service (panne d’instance)Disponibilité 95 %Sécurité & auditabilitéProtéger les opérations sensibles : inscription, MFA, activation, paiement, détection de fraude et accès aux données personnellesMFA obligatoire pour les opérations sensibles; secrets protégés; audit append-only des événements critiques.1.4 Parties prenantes
+Partie prenanteRôle / attenteSection concernéeAbonnés particuliers / PMESouscription, usage, paiement§1, §6Opérateur (exploitation) Disponibilité, observabilité§7, §8.8, §10Régulateur (CRTC, Loi 25)Conformité, auditabilité§2, §8.4, §9Équipe de développementConcevoir, implémenter, tester et maintenir les microservices, les API REST et les pipelines CI/CD.§4, §5, §10.4Équipe DevOps / SREDéployer les services, gérer les conteneurs, le load balancing, l’observabilité, les métriques et la reprise après panne.§7, §8.8, §10Réseau et interconnexion simulésFournir les intégrations nécessaires : réseau HLR/HSS/UDM, hub de portabilité, passerelle de paiement et médiation d’usage.§3.2, §4.2, §7Équipe sécurité / conformitéDéfinir les contrôles MFA, anti-fraude, gestion des données sensibles, journalisation et audit append-only.§2.2, §8.4, §8.5, §8.62. Contraintes d’architecture
+Objectif Arc42 — Recenser les contraintes techniques, réglementaires et organisationnelles qui limitent les choix d’architecture.
+2.1 Contraintes techniques
+ContrainteDescription / impactDéploiementMachine virtuelle fournie ; conteneurisation Docker ; docker compose up unique.Communication (Phase 1)Synchrone REST entre services.DocumentationOpenAPI/Swagger ; modèle Arc42 ; vues 4+1 ; ? 3 ADR.ObservabilitéPrometheus + Grafana (4 Golden Signals).Pile technologiquePython / Flask pour les microservices REST; MySQL comme base relationnelle; Redis pour le cache; NGINX comme reverse proxy / load balancer; Prometheus + Grafana pour l’observabilité; Locust pour les tests de charge; Docker Compose pour l’orchestration locale et sur VM; GitHub Actions pour le CI/CD2.2 Contraintes réglementaires & conformité
+Le cadre télécom canadien impose des contraintes structurantes (à tracer vers les ADR §9) :
+CadreExigence dérivéeCRTC / Loi sur les télécommunicationsAuditabilité des opérations sensibles.Loi 25 / LPRPDEProtection des renseignements personnels, traçabilité des accès.Intégrité transactionnelleIdempotence (commandes/activations), exactly-once (facturation), journal d’audit append-only.Lutte à la fraudeContrôles SIM swap, usurpation d’identité, fraude roaming ; MFA sur opérations sensibles.2.3 Contraintes organisationnelles & conventions
+[À compléter — conventions d’équipe : versionnement Git, normes de code, gestion des secrets via variables d’environnement, langue de la doc, etc.]
+ContrainteDescription / impactVersionnement GitLe code source, les fichiers Docker, la documentation et les scripts de déploiement sont versionnés dans un dépôt Git commun. Les changements doivent être intégrés par branches et revues avant fusion.Organisation du dépôtLe dépôt doit séparer clairement les microservices, la configuration Docker, la documentation d’architecture, les contrats OpenAPI et les scripts d’exploitation.Normes de codeLe code doit respecter des conventions communes de nommage, de structure, de formatage et de gestion des erreurs afin de faciliter la maintenance par l’équipe.Gestion des secretsAucun secret ne doit être stocké en clair dans le dépôt. Les mots de passe, clés et jetons doivent être fournis par variables d’environnement ou fichiers .env exclus du versionnement.DocumentationLa documentation d’architecture est rédigée en français selon le gabarit Arc42 + vues 4+1 + ADR. Les API sont documentées avec OpenAPI/Swagger.ReproductibilitéL’environnement doit pouvoir être lancé sur la VM avec une procédure simple, idéalement par docker compose up, afin de respecter l’objectif de reproductibilité.Usage de l’IA générativeL’IA générative peut être utilisée comme assistance au setup, au débogage, à la compréhension et à la complétion, mais l’équipe demeure responsable du contenu final et doit documenter son usage si demandé.
+Note SIAG (encadrement labos): l’usage des systèmes d’IA générative est encadré — assistance au setup, au débogage et à la complétion permise, mais la production directe des livrables évalués peut faire l’objet d’une vérification orale ou écrite. Documentez votre usage.
+3. Contexte et périmètre
+Objectif Arc42 — Délimiter le système vis-à-vis de ses partenaires (utilisateurs et systèmes externes) — contextes métier et technique — et cartographier le domaine (DDD).
+Repères de l’énoncé
+Tâches de l’énoncé : 1.2 Cartographier le domaine (DDD) ; 4.2 adapters externes simulés.
+Vue 4+1 : Contexte (alimente Logique et Déploiement).
+Livrables attendus :
+• Diagramme de contexte (système + acteurs + systèmes externes).
+• Bounded contexts et carte des contextes (DDD).
+• Ubiquitous language (reporté au glossaire §12).
+Critères d’acceptation (à cocher)
+?  Frontières de service tracées à partir des bounded contexts.
+
+3.1 Contexte métier
+[À compléter — diagramme de contexte : acteurs (abonnés, agents, régulateur) et flux d’information majeurs — insérer la figure]
+
+
+
+3.2 Contexte technique
+Systèmes externes simulés à intégrer via adapters (ports/adapters) :
+Système externe simuléRôleProtocole / adapterRéseau mobile HLR/HSSActivation et état des lignes mobiles; provisioning de la ligne; association SIM/eSIM et profil abonné.Adapter REST simulé MobileNetworkAdapter; appels HTTP/JSON vers endpoints de provisioning, activation SIM/eSIM et consultation d’état.Hub de portabilité
+Portabilité d’un numéro mobile existant; validation ou refus d’une demande de portabilité MSISDN.Adapter REST simulé PortabilityAdapter; appels HTTP/JSON pour créer une demande de portabilité et consulter son statut.Passerelle de paiementPaiement de facture mobile dans UC-06; autorisation, confirmation, refus ou attente de paiement.Adapter REST simulé PaymentGatewayAdapter; appels HTTP/JSON pour autoriser/capturer un paiement et consulter le statut de transaction.Médiation d’usage / CDR simulésFournir les usages voix/SMS/data nécessaires à la consultation d’usage et au cycle de facturation.Adapter REST ou batch simulé UsageMediationAdapter; récupération HTTP/JSON ou import périodique de CDR simulés.Service KYC / scoring simuléVérification d’identité client, statut KYC et score de risque pour l’inscription et les contrôles anti-fraude.Adapter REST simulé KycScoringAdapter; appels HTTP/JSON pour vérifier l’identité et obtenir un score de risque.Service OTP / MFA simuléGénération et validation des codes OTP/MFA pour l’inscription, l’authentification et les opérations sensibles.Adapter REST simulé MfaAdapter; appels HTTP/JSON pour générer, valider et expirer un facteur MFA.3.3 Cartographie du domaine (DDD)
+Bounded contexts du domaine télécom (frontières de service candidates) :
+Bounded contextResponsabilitéService candidatClients & IdentitéProfils abonnés, vérification d’identité, MFAsvc-clients-identiteLignes & ServicesLignes / MSISDN, activationsvc-lignes-servicesCommandes & ActivationsPrise de commande, idempotencesvc-commandes-activationsCatalogue & OffresForfaits, options, éligibilitésvc-catalogue-offresUsage / Rating / FacturationUsage, rating, factures, exactly-oncesvc-usage-facturationConformité & AuditJournal append-only, anti-fraudesvc-conformite-auditCarte des contextes (relations : upstream/downstream, ACL, conformist…) :
+[À compléter — insérer la carte des contextes DDD et décrire les relations]
+La carte des contextes DDD présente les six bounded contexts principaux de CanTelcoX et leurs services candidats. Clients & Identité et Catalogue & Offres sont en amont de Commandes & Activations: une commande a besoin d’un client identifié, d’un score de risque acceptable et d’une offre valide avec ses règles d’éligibilité. Commandes & Activations orchestre ensuite les changements métier et transmet les demandes d’activation à Lignes & Services. Lignes & Services gère les lignes mobiles, les MSISDN et les SIM/eSIM, puis fournit à Usage / Rating / Facturation les informations nécessaires au calcul d’usage, au rating et à la facturation.
+Conformité & Audit est un contexte transversal. Il reçoit les événements critiques des autres contextes, comme l’inscription, le MFA, les commandes, les activations, les changements de catalogue, les factures et les paiements. Ces événements alimentent un journal append-only utilisé pour l’audit, la conformité et la détection de fraude.
+Les systèmes externes simulés sont intégrés par des ACL / adapters afin de protéger le modèle de domaine interne. Par exemple, Clients & Identité utilise des adapters vers KYC/scoring et OTP/MFA, Lignes & Services utilise des adapters vers HLR/HSS/UDM et le hub de portabilité, et Usage / Rating / Facturation utilise des adapters vers la médiation CDR et la passerelle de paiement.
+
+
+
+
+
+
+
+
+
+
+
+La figure suivante présente la carte des contextes DDD. Les rectangles bleus représentent les bounded contexts internes, le rectangle jaune représente le contexte transversal de conformité/audit, et les rectangles gris représentent les systèmes externes simulés accessibles via ACL/adapters.
+
+Blocs DDD à matérialiser dans le code: Ubiquitous Language (mêmes noms d’entités dans la doc, les diagrammes et le code), Value Objects (ex. ligne de commande sans identité propre hors de son agrégat), Aggregates (cohérence transactionnelle via commit/rollback), Repositories (masquage de la persistance, ségrégation lecture/écriture).
+4. Stratégie de solution
+Objectif Arc42 — Résumer les décisions fondamentales : style architectural, découpage, technologies, atteinte des objectifs de qualité.
+Repères de l’énoncé
+Tâches de l’énoncé : 2.1 Concevoir l’architecture microservices ; 2.2 Concevoir la couche API REST.
+Vue 4+1 : Transversale (préfigure §5–§7).
+Livrables attendus :
+• Choix de découpage en services (? 2) et style par service (Hexagonal/MVC).
+• Stratégie de communication inter-services (sync REST en Phase 1).
+• Routes versionnées /v1, codes HTTP normalisés, format d’erreur JSON unifié, contrats OpenAPI.
+Critères d’acceptation (à cocher)
+?  Dépendances dirigées (pas de cycles), couplage contrôlé aux frameworks.
+?  Bounded contexts mappés sur les services.
+?  Swagger publié, collection Postman fonctionnelle, séparation domaine ? infra.
+
+4.1 Style architectural & découpage en services
+DécisionChoix retenuJustification (? ADR)Style globalArchitecture basée par services (microservices)Ce style permet d’aligner l’architecture sur les bounded contexts DDD, de séparer les responsabilités métier et de déployer les services de façon indépendante. Il répond aux besoins de modularité, d’évolutivité, d’observabilité et de tolérance aux pannes attendus en Phase 1 ? ADR-001Découpage (BC ? service)svc-clients-identite, svc-lignes-services, svc-commandes-activations, svc-catalogue-offres, svc-usage-facturation, svc-conformite-auditChaque service candidat correspond à un bounded context du domaine CanTelcoX. Ce découpage limite le couplage, clarifie la propriété des données et facilite la traçabilité entre les exigences métier, les API et le code. ? ADR-001Style par serviceHexagonal (ports/adapters) / MVCL’architecture hexagonale sépare le domaine métier de l’infrastructure: API REST, bases de données, adapters externes, cache et observabilité. Les contrôleurs MVC peuvent être utilisés à l’entrée HTTP, mais la logique métier reste dans la couche domaine/application. ? ADR-0014.2 Communication inter-services
+[À compléter — décrivez la communication synchrone REST en Phase 1, la gestion des dépendances dirigées et l’absence de cycles]
+En Phase 1, la communication inter-services est principalement synchrone par REST/HTTP en JSON. Chaque service expose une API interne ou publique documentée par OpenAPI/Swagger et utilise des routes versionnées sous /v1. Cette approche est retenue pour garder l’architecture simple, testable et compatible avec les contraintes de démonstration sur VM.
+Les dépendances entre services sont dirigées et suivent la carte des contextes DDD. Par exemple, Commandes & Activations consomme les informations de Clients & Identité et de Catalogue & Offres, puis délègue l’activation à Lignes & Services. Usage / Rating / Facturation consomme les informations de lignes actives, de commandes et d’usage pour produire les factures et paiements. Conformité & Audit reçoit les événements critiques des autres services pour alimenter le journal append-only.
+Les cycles de dépendance sont évités : un service consommateur appelle un service fournisseur, mais le fournisseur ne doit pas rappeler directement le consommateur dans le même flux. Lorsque des informations doivent être propagées vers l’audit ou la conformité, elles sont envoyées sous forme d’événements ou de journaux applicatifs, sans créer de dépendance circulaire.
+Les systèmes externes simulés, comme HLR/HSS/UDM, hub de portabilité, passerelle de paiement, KYC/scoring, OTP/MFA et médiation CDR, sont appelés au moyen d’adapters. Cette séparation permet de garder la logique métier indépendante des détails techniques des simulateurs.
+4.3 Stratégie de l’API REST
+AspectConvention retenueVersionnementToutes les routes exposées utilisent le préfixe /v1/.... Les changements incompatibles seront publiés dans une version majeure ultérieure, par exemple /v2/....Codes HTTP200 OK pour une lecture ou une action réussie; 201 Created pour une création; 202 Accepted pour une opération acceptée mais en traitement; 204 No Content pour une suppression ou action sans corps de réponse; 400 Bad Request pour une requête mal formée; 401 Unauthorized si l’utilisateur n’est pas authentifié; 403 Forbidden si l’accès est interdit; 404 Not Found si la ressource n’existe pas; 409 Conflict pour conflit d’état ou doublon/idempotence; 422 Unprocessable Entity pour erreur métier; 500 Internal Server Error pour erreur serveur.Format d’erreurJSON unifié contenant code, message, details, traceId et timestamp. Le champ traceId permet de corréler l’erreur avec les logs et les traces d’observabilité.DocumentationOpenAPI/Swagger publié pour chaque service exposé; collection Postman fournie en Annexe A pour tester les cas d’utilisation Must.4.4 Référence industrielle TMF (optionnelle)
+Les TMF Open APIs peuvent inspirer la conception. Mapping indicatif :
+TMF Open APIDomaineService interneTMF620 Product CatalogCatalogue & Offressvc-catalogue-offresTMF622 Product OrderingCommandes & Activationssvc-commandes-activationsTMF629 Customer MgmtClients & Identitésvc-clients-identiteTMF666 Account MgmtFacturationsvc-usage-facturation5. Vue des blocs de construction
+Objectif Arc42 — Décomposition statique du système : niveau 1 (services), niveau 2 (structure interne d’un service), modèle de domaine. Couvre les vues Logique et Développement de 4+1.
+Repères de l’énoncé
+Tâches de l’énoncé : 1.2 modèle de domaine ; 2.1 couches & dépendances ; 4.1 domaine ; 4.2 ports/adapters.
+Vue 4+1 : Logique + Développement.
+Livrables attendus :
+• Décomposition en services et couches (hexagonal : domaine / application / infrastructure).
+• Modèle de domaine par service (entités, agrégats, value objects).
+• Organisation du code (structure des dépôts / modules).
+Critères d’acceptation (à cocher)
+?  Agrégats clés identifiés (Profils abonnés, Lignes/MSISDN, Commandes, Forfaits, Factures).
+?  Séparation nette domaine ? infra ; pas de logique métier dans les controllers.
+
+5.1 Niveau 1 — Décomposition en services
+[À compléter — diagramme « whitebox » du système : services, API Gateway, dépendances dirigées — insérer la figure et décrire chaque service (responsabilité, interface)]
+
+La figure présente la décomposition « whitebox » du système CanTelcoX en plusieurs services métier indépendants, exposés à travers une API Gateway / reverse proxy NGINX. Les acteurs externes, soit l’abonné particulier/PME et le Back-Office, accèdent au système via des API HTTPS/JSON versionnées en /v1/*. L’API Gateway centralise l’entrée du trafic et redirige les requêtes vers les services appropriés.
+Le service svc-clients-identite est responsable de la gestion des clients, de l’identité, de l’authentification et des vérifications de risque. Il communique avec la base DB Clients et avec des composants simulés de KYC/scoring ainsi que OTP/MFA. Il publie également des événements liés à l’identité et à l’authentification vers le service de conformité et d’audit.
+Le service svc-commandes-activations gère les commandes, les activations et les changements de forfait. Il valide les clients, l’identité, les risques et les offres disponibles avant de créer ou modifier une commande. Il interagit avec svc-catalogue-offres, svc-lignes-services, svc-usage-facturation et svc-conformite-audit, en plus d’utiliser DB Commandes pour persister l’état des commandes.
+Le service svc-catalogue-offres gère le catalogue des offres, des forfaits, des prix et des règles d’éligibilité. Il utilise DB Catalogue comme source de données principale et peut alimenter un cache Redis pour optimiser la consultation des offres.
+Le service svc-lignes-services est responsable des lignes, des services télécoms et de l’activation réseau. Il communique avec des systèmes simulés comme HLR/HSS/UDM et un hub de portabilité MSISDN. Il maintient les informations de lignes dans DB Lignes et transmet les événements pertinents vers la facturation et l’audit.
+Le service svc-usage-facturation gère l’usage, la tarification, les factures et les paiements. Il reçoit les événements de ligne, de commande et de paiement, applique les règles de facturation, interagit avec la passerelle de paiement simulée et persiste les données dans DB Facturation. Il utilise aussi Redis pour le cache des données de catalogue, d’usage et de facturation.
+Enfin, le service svc-conformite-audit centralise les événements d’audit provenant des autres services. Il conserve les traces dans une base DB Audit en mode append-only afin d’assurer la traçabilité, la conformité et l’analyse des actions critiques du système.
+
+5.2 Niveau 2 — Structure interne d’un service (hexagonal)
+[À compléter — pour un service représentatif : couches domaine / application / infrastructure, ports & adapters — insérer le diagramme]
+Le service représentatif choisi est svc-commandes-activations, responsable de la prise de commande, de l’idempotence et de l’orchestration des activations. Il est structuré selon une architecture hexagonale afin de séparer la logique métier des détails techniques comme REST, la base de données, les appels inter-services et l’observabilité.
+
+Figure … — Structure interne hexagonale de svc-commandes-activations. La figure suivante représente le service svc-commandes-activations selon une architecture hexagonale. Le cœur du service est représenté par l’hexagone : il contient la couche application et le domaine pur. Les ports d’entrée et de sortie définissent les contrats abstraits utilisés par le cœur. Les adapters REST, SQL et interservices restent à l’extérieur de l’hexagone afin d’éviter que le domaine dépende directement de Flask, MySQL ou des autres services.
+CoucheResponsabilitéExemplesAdapters entrantsRecevoir les appels externes, convertir les requêtes HTTP en commandes applicatives, valider le format de la requête et retourner les réponses HTTP. Ils ne contiennent pas de logique métier.OrderController, ActivationControllerPorts entrantsDéfinir les opérations offertes par le cœur du service aux adapters entrants. Ils représentent les cas d’utilisation accessibles depuis l’extérieur.OrderCommandPort, ActivationCommandPortApplication
+Orchestrer les cas d’utilisation, gérer l’idempotence, coordonner les appels aux ports sortants et appliquer les transactions applicatives.CreateOrderUseCase, ActivateLineUseCase, OrderApplicationService, IdempotencyServiceDomaine — cœur purPorter les règles métier indépendantes des frameworks, de REST, de MySQL et des autres services.Commande, LigneCommande, OrderStatus, OrderId, OfferId, CustomerId, IdempotencyKeyPorts sortantsDéfinir les dépendances abstraites nécessaires au cœur applicatif sans dépendre des technologies concrètes.OrderRepositoryPort, CatalogPort, ClientIdentityPort, LineServicePort, BillingPort, AuditPortAdapters sortantsImplémenter les ports sortants vers les technologies concrètes : base de données, API REST internes, audit et services voisins.MySQLOrderRepository, CatalogRestAdapter, ClientIdentityRestAdapter, LineServiceRestAdapter, BillingRestAdapter, AuditRestAdapterInfrastructure techniqueFournir les mécanismes techniques transversaux utilisés par les adapters: configuration, logs, métriques, clients HTTP, connexion MySQL et variables d’environnement.MySQL, Prometheus metrics, logs structurés, configuration Flask, variables d’environnement
+5.3 Modèle de domaine
+Agrégats clés à modéliser (un diagramme par bounded context retenu) :
+AgrégatEntités / Value ObjectsInvariantsProfil abonnéEntités: ProfilAbonne, VerificationIdentite, MfaChallenge.
+Value Objects: CustomerId, Adresse, StatutIdentite, ScoreRisque, Email, Telephone.Un profil ne peut passer à Active que si l’identité est vérifiée, le MFA est validé et le score de risque est acceptable. Les données sensibles doivent être protégées et les vérifications doivent être auditables.Ligne / MSISDNEntités: LigneMobile, SimCard, Portabilite.
+Value Objects: LineId, MSISDN, ICCID, StatutLigne, TypeLigne, PortabilityStatus.Un MSISDN doit être unique. Une SIM/eSIM ne peut être associée qu’à une seule ligne active. Une ligne ne peut passer à Active qu’après provisioning réseau réussi. Les transitions de statut doivent être conservées.CommandeEntités: Commande, LigneCommande, ActivationRequest.
+Value Objects: OrderId, CustomerId, OfferId, IdempotencyKey, OrderStatus, Money.Une même clé d’idempotence ne doit pas créer deux commandes. Une commande doit référencer un client valide et une offre active/versionnée. Une commande exécutée doit produire une trace d’audit.Forfait / OffreEntités: Offre, Forfait, Option, RegleEligibilite.
+Value Objects: OfferId, OfferVersion, Prix, QuotaData, PeriodeValidite, TypeOption.Une offre publiée doit avoir un prix, une version et des règles d’éligibilité. Une commande doit référencer une version précise de l’offre. Une offre retirée ne doit plus être sélectionnable pour une nouvelle commande.FactureEntités: Facture, LigneFacture, Paiement. 
+Value Objects: InvoiceId, BillingPeriod, Montant, PaymentId, PaymentStatus, TransactionReference.Une facture ne doit être générée qu’une seule fois par compte et par période. Un paiement ne doit pas être appliqué deux fois. Les écritures de facturation et de paiement doivent respecter l’exactly-once logique et être auditables.Conformité & AuditEntités: AuditEvent, FraudAlert. 
+Value Objects: AuditEventId, TraceId, Timestamp, ActorId, EventType, RiskLevel.Le journal d’audit est append-only: un événement ne doit jamais être modifié ni supprimé. Chaque opération sensible doit produire une trace horodatée avec acteur, source, résultat et identifiant de corrélation.5.4 Organisation du code (vue Développement)
+[À compléter — arborescence des modules/dépôts, conventions de packaging, dépendances entre couches]
+L’organisation du code suit le découpage en services défini à partir des bounded contexts. Chaque service possède sa propre structure interne et applique une séparation claire entre les couches API, application, domaine et infrastructure. Les controllers ne contiennent pas de logique métier : ils valident les entrées, appellent les cas d’utilisation et transforment les résultats en réponses HTTP.
+Arborescence proposée du dépôt
+
+Structure interne type d’un service
+
+
+Conventions de dépendances entre couches
+CoucheResponsabilitéDépendances autoriséesapi
+Expose les endpoints REST, valide les requêtes, retourne les réponses HTTP.Peut dépendre de application, jamais directement de infrastructure pour la logique métier.applicationOrchestre les cas d’utilisation, transactions applicatives, idempotence et appels aux ports.Peut dépendre de domain et des interfaces de ports.domain
+Contient les entités, agrégats, value objects, règles métier et exceptions métier.Ne dépend d’aucun framework, d’aucune base de données et d’aucun adapter externe.infrastructureImplémente la persistance, les adapters REST externes, la configuration, logs et métriques.Peut dépendre des ports définis par l’application/domaine.
+Règles de développement
+* Les noms utilisés dans le code doivent suivre le Ubiquitous Language défini dans le rapport : ProfilAbonne, LigneMobile, MSISDN, Commande, Offre, Facture, Paiement, AuditEvent.
+* Les détails techniques comme MySQL, Redis, REST clients, Prometheus et variables d’environnement restent dans infrastructure.
+* Les contrats OpenAPI sont conservés dans chaque service et regroupés dans docs/openapi.
+* Les tests de charge Locust, les collections Postman et les tests d’intégration sont placés dans tests.
+* Les secrets ne sont pas versionnés; seuls les exemples comme .env.example sont présents dans le dépôt.
+6. Vue d’exécution
+Objectif Arc42 — Comportement dynamique : interactions entre composants pour les scénarios clés. Couvre la vue Processus (C&C) de 4+1.
+Repères de l’énoncé
+Tâches de l’énoncé : 4.3 Exposer l’API REST publique (scénario bout-en-bout) ; 3.2 idempotence à l’exécution.
+Vue 4+1 : Processus (C&C).
+Livrables attendus :
+• Diagrammes de séquence pour les scénarios clés.
+• Scénario E2E : inscription ? MFA ? activation ligne ? souscription forfait ? consultation usage.
+Critères d’acceptation (à cocher)
+?  Scénario bout-en-bout démontrable dans la VM, erreurs normalisées JSON.
+?  Double soumission d’une commande sans effet de bord (idempotence) illustrée.
+
+6.1 Scénario bout-en-bout (E2E)
+[À compléter — diagramme de séquence : inscription ? MFA ? activation ? souscription ? consultation usage (traversée des services + Gateway)]
+
+Figure X — Scénario E2E CanTelcoX. Le scénario illustre un parcours complet d’abonné à travers l’API Gateway et les services métier. L’abonné crée un profil, valide son inscription par OTP/MFA, sélectionne une offre, crée une commande idempotente, active une ligne mobile puis consulte son usage courant. Les appels externes vers KYC/scoring, OTP/MFA, HLR/HSS/UDM et médiation CDR sont isolés par les adapters des services concernés. Les opérations sensibles produisent des événements d’audit afin d’alimenter le journal append-only.
+6.2 Authentification & MFA (UC-02)
+[À compléter — séquence MFA/OTP sur opération sensible]
+
+Figure X — Séquence d’authentification et MFA. Le scénario montre l’authentification primaire de l’abonné, suivie d’un challenge OTP/MFA validé par un service simulé. Une session ou un jeton d’accès est créé uniquement si le MFA est réussi. Pour les opérations sensibles, comme l’activation d’une ligne ou le paiement d’une facture, l’API Gateway vérifie que la session est valide et que le niveau MFA est suffisant avant de transmettre la requête au service métier concerné.
+6.3 Idempotence & exactly-once à l’exécution
+[À compléter — séquences : double soumission de commande (idempotency-key) et écriture de facturation exactly-once]
+6.3.1 Double soumission de commande avec Idempotency-Key
+
+Figure X — Idempotence d’une commande. Lors de la première soumission, le service svc-commandes-activations vérifie l’absence de la clé Idempotency-Key, crée la commande et associe la clé au résultat. Lors d’une soumission répétée avec la même clé, le service retourne le résultat déjà enregistré sans créer de nouvelle commande. Cette stratégie évite les doublons en cas de rafraîchissement, timeout client ou retry réseau.
+
+
+6.3.2 Exactly-once logique pour une écriture de facturation
+
+Figure X — Exactly-once logique pour la facturation. Le service svc-usage-facturation applique une écriture de paiement une seule fois grâce à la clé d’idempotence, à la référence de transaction et à une contrainte d’unicité en base. Si la requête est rejouée, le service retourne le résultat déjà connu sans appeler de nouveau la passerelle de paiement et sans modifier deux fois la facture.
+7. Vue de déploiement
+Objectif Arc42 — Infrastructure technique : nœuds, conteneurs, répartition des artefacts. Couvre la vue Déploiement de 4+1.
+Repères de l’énoncé
+Tâches de l’énoncé : 8.1 conteneurisation ; 6.1 API Gateway ; 5.3 load balancing.
+Vue 4+1 : Déploiement.
+Livrables attendus :
+• Topologie docker-compose : services + DB + Prometheus + Grafana + Gateway + cache + seed ; healthchecks /health.
+• API Gateway (Kong/KrakenD/Spring Cloud Gateway) : routage, en-têtes/clé API, CORS, throttling.
+• Load balancing (NGINX/HAProxy/Traefik) pour N = 1..4 instances.
+Critères d’acceptation (à cocher)
+?  docker compose up lance l’ensemble ; healthchecks OK.
+?  Appels fonctionnels via la Gateway ; configuration versionnée.
+s
+7.1 Topologie de déploiement
+[À compléter — diagramme de déploiement : conteneurs, réseaux, volumes, healthchecks — insérer la figure]
+
+7.2 API Gateway
+Capacité GatewayConfigurationRoutage dynamiqueL’API Gateway expose un point d’entrée unique /v1/* et redirige les requêtes vers les services internes selon le préfixe de route : /v1/customers et /v1/auth vers svc-clients-identite, /v1/offers vers svc-catalogue-offres, /v1/orders et /v1/activations vers svc-commandes-activations, /v1/lines vers svc-lignes-services, /v1/usage, /v1/invoices et /v1/payments vers svc-usage-facturation, /v1/audit-events et /v1/fraud-alerts vers svc-conformite-audit.En-têtes / clé APILa Gateway propage les en-têtes Authorization, X-Request-Id, TraceId et Idempotency-Key. Une clé API ou un jeton peut être exigé pour les appels sensibles ou back-office.CORSLes origines autorisées sont limitées au portail web local et aux outils de démonstration, par exemple http://localhost, http://localhost:3000 et l’URL de la VM. Les méthodes autorisées incluent GET, POST, PUT, PATCH, DELETE et OPTIONS.Produit retenuNGINX comme API Gateway / reverse proxy léger. Il sert de point d’entrée unique, applique le routage /v1/*, centralise les en-têtes, permet le load balancing et reste compatible avec Docker Compose.TimeoutTimeout par défaut de 5 s pour les routes standards. Timeout plus long, jusqu’à 15 s, pour les opérations pouvant appeler des systèmes externes simulés, comme activation, portabilité, paiement ou KYC.Throttling / quota (optionnel)Limitation simple par IP ou par clé API pour protéger les routes sensibles : authentification, MFA, paiement, activation et commande. Exemple cible : 60 requêtes/minute par client pour les routes sensibles en démonstration.7.3 Load balancing & tolérance aux pannes
+[À compléter — amont (NGINX/HAProxy/Traefik), stratégie d’équilibrage, plan de test N = 1..4 et kill d’instance (résultats au §10.6)]
+Le load balancing est assuré par NGINX, utilisé comme API Gateway et reverse proxy. Les services applicatifs peuvent être répliqués de N = 1 à N = 4 instances dans Docker Compose. NGINX répartit les requêtes entrantes entre les instances disponibles selon une stratégie simple de type round-robin. Chaque instance expose un endpoint /health, utilisé pour vérifier son état avant ou pendant les tests.
+ÉlémentChoix retenuComposant de load balancingNGINX comme reverse proxy / API GatewayStratégieRound-robin entre les instances disponibles d’un même serviceServices ciblésPrincipalement svc-commandes-activations, svc-usage-facturation et svc-catalogue-offres, car ils sont sollicités par les scénarios UC-04, UC-05 et UC-06Nombre d’instances testéesN = 1, 2, 3 et 4 instancesHealthcheckEndpoint /health exposé par chaque serviceTolérance aux pannesArrêt manuel d’une instance pendant le test; les requêtes doivent continuer à être servies par les instances restantesObservabilitéSuivi avec Prometheus/Grafana: latence, taux d’erreur, débit et saturationRésultatsLes résultats détaillés sont présentés au §10.6
+8. Concepts transversaux
+Objectif Arc42 — Idées et mécanismes appliqués de façon transversale : persistance, intégrité, sécurité, observabilité, gestion d’erreurs, caching.
+Repères de l’énoncé
+Tâches de l’énoncé : 3.1–3.2 persistance & intégrité ; 4.4 / 7.2 sécurité ; 5.1 observabilité ; 5.4 caching.
+Livrables attendus :
+• Schéma de persistance par service (ORM/DAO), contraintes d’intégrité, migrations, seeds.
+• Idempotence (idempotency-key), exactly-once (facturation), journal d’audit append-only.
+• Sécurité : CORS, Basic/JWT, MFA/OTP, validation, secrets via variables d’environnement.
+• Observabilité : logs structurés, métriques Prometheus, dashboards Grafana (4 Golden Signals).
+• Caching (mémoire/Redis) sur endpoints coûteux + règles d’invalidation.
+Critères d’acceptation (à cocher)
+?  CRUD robuste, rollback sur erreur, double soumission sans effet de bord.
+?  Garantie exactly-once sur écritures de facturation ; journal append-only opérationnel.
+?  Aucun secret en clair ; MFA fonctionnel sur UC-02 et UC-03.
+?  4 Golden Signals observés (P95/P99, RPS, 4xx/5xx, saturation).
+?  Gains de cache chiffrés (latence, charge DB) + stratégie d’invalidation.
+
+8.1 Persistance & intégrité
+[À compléter — choix ORM/DAO, transactions, contraintes (unicité MSISDN, FK profils ? lignes, index), migrations reproductibles, données seed (schéma détaillé en Annexe B)]
+La persistance est organisée par service afin de respecter les frontières des bounded contexts. Chaque service possède ses propres tables logiques et accède à ses données par une couche DAO/Repository. La logique métier ne dépend pas directement de MySQL : les repositories masquent les détails SQL, les transactions et les accès à la base.
+Élément
+
+Choix retenuType de persistanceBase relationnelle MySQL, avec séparation logique par service.Accès aux donnéesCouche DAO/Repository par service afin de masquer la persistance.TransactionsTransactions locales par service avec commit/rollback en cas d’erreur.MigrationsScripts de migration versionnés et rejouables au démarrage ou via scripts init-db.SeedsDonnées de départ pour la démonstration : offres, forfaits, clients de test, factures, lignes et CDR simulés.IntégritéContraintes d’unicité, clés étrangères internes au service, index sur les identifiants métier et statuts.Observabilité BDLogs d’erreurs, métriques de latence et suivi des erreurs de transaction.
+Contraintes d’intégrité principals
+DomaineContraintesClients & IdentitécustomerId unique; courriel unique; statut d’identité contrôlé (non vérifié, en cours, vérifié, refusé); accès restreint aux données sensibles.Lignes & ServicesMSISDN unique; ICCID SIM/eSIM unique; une SIM/eSIM ne peut être associée qu’à une seule ligne active; transitions de statut contrôlées.Commandes & ActivationsorderId unique; Idempotency-Key unique par client et opération; une double soumission retourne le résultat existant sans créer de doublon.Catalogue & OffresofferId et offerVersion uniques; une commande doit référencer une version précise d’offre; une offre retirée ne peut plus être commandée.Usage / FacturationinvoiceId unique; une facture unique par compte et période; paymentTransactionRef unique; exactly-once logique sur les écritures de paiement/facturation.Conformité & AuditJournal append-only; aucun UPDATE ou DELETE logique sur les événements d’audit; chaque événement possède traceId, timestamp, actorId, eventType et résultat.
+8.2 Idempotence (commandes & activations)
+[À compléter — mécanisme d’idempotency-key : portée, stockage, fenêtre de rejeu, comportement sur double soumission]
+Les opérations de création de commande et d’activation de ligne sont protégées par un mécanisme d’idempotency-key. Le client fournit une clé unique dans l’en-tête HTTP Idempotency-Key lors des appels sensibles, par exemple POST /v1/orders ou POST /v1/activations. Cette clé permet de reconnaître une requête déjà traitée et d’éviter les doublons lors d’un retry, d’un timeout réseau ou d’une double soumission utilisateur.
+ÉlémentMécanisme retenuPortéeLa clé est unique par client, type d’opération et ressource cible, par exemple création de commande ou activation de ligne.StockageLa clé est stockée dans la base du service concerné avec le statut de traitement, le hash de la requête et la réponse produite.Fenêtre de rejeuLa clé est conservée pendant une période limitée, par exemple 24 h pour les commandes et activations.Double soumissionSi la même requête est rejouée avec la même clé, le service retourne le résultat déjà enregistré sans relancer l’opération. Si la même clé est réutilisée avec un contenu différent, le service retourne 409 Conflict.
+8.3 Exactly-once (facturation)
+[À compléter — garantie d’écriture unique des opérations de facturation : déduplication, transactions, outbox…]
+Les opérations de facturation utilisent une garantie exactly-once logique afin d’éviter qu’une facture, un paiement ou une écriture comptable soit appliqué plusieurs fois. Cette garantie est assurée au niveau applicatif par la déduplication, les transactions locales et un journal d’événements de type outbox.
+ÉlémentMécanisme retenuDéduplicationChaque opération de facturation possède un identifiant unique, par exemple invoiceId, paymentId, transactionRef ou Idempotency-Key. Avant d’écrire, le service vérifie si l’opération existe déjà.TransactionsLes écritures critiques sont exécutées dans une transaction locale : création de facture, enregistrement du paiement, changement de statut et écriture de l’événement outbox. En cas d’erreur, un rollback empêche un état partiellement écrit.Contraintes d’unicitéLa base impose des contraintes uniques, par exemple une seule facture par compte et période, un seul paiement par transaction de paiement et une seule écriture pour une clé d’idempotence donnée.OutboxAprès une écriture de facturation, un événement est ajouté dans une table outbox_events dans la même transaction. Cet événement est ensuite publié ou lu par le service d’audit sans perdre la cohérence avec la base.RejeuSi la même opération est rejouée, le service retourne le résultat déjà enregistré sans recréer la facture, sans appliquer un deuxième paiement et sans produire un double effet métier.
+8.4 Journal d’audit append-only (CRTC / Loi 25)
+[À compléter — structure du journal immuable, événements consignés, garantie d’immutabilité]
+Le journal d’audit est conçu comme un registre append-only. Les événements sensibles sont ajoutés au journal, mais ne sont jamais modifiés ni supprimés. Ce mécanisme permet de conserver une trace fiable des opérations importantes pour la conformité, la sécurité et l’analyse des incidents.
+ÉlémentMécanisme retenuStructure du journalChaque événement contient auditEventId, eventType, actorId, customerId, resourceId, traceId, timestamp, sourceService, result et metadata.Événements consignésInscription, vérification d’identité, MFA réussi ou échoué, création de commande, activation de ligne, changement SIM/eSIM, paiement, détection de fraude, accès à une donnée sensible et erreur critique.ImmutabilitéLes événements sont uniquement insérés. Les opérations UPDATE et DELETE sont interdites au niveau applicatif pour la table d’audit.Traçabilité
+Le champ traceId permet de relier un événement d’audit aux logs applicatifs, aux métriques et aux requêtes HTTP.ConformitéLe journal supporte les besoins de traçabilité liés aux opérations télécoms, à la protection des renseignements personnels et aux vérifications simulées du régulateur.
+8.5 Sécurité applicative
+MécanismeMise en œuvreAuthentificationAuthentification par identifiant/mot de passe avec émission d’un jeton JWT après succès. Le jeton est transmis dans l’en-tête Authorization: Bearer <token> pour les appels protégés.MFA / OTPLe MFA/OTP est exigé pour les opérations sensibles, notamment UC-02 Authentification, UC-03 Activation de ligne, paiement de facture, changement SIM/eSIM et actions back-office critiques.CORSLes origines autorisées sont limitées aux interfaces connues, par exemple http://localhost, http://localhost:3000 et l’URL de la VM. Les méthodes autorisées sont GET, POST, PUT, PATCH, DELETE et OPTIONS.Validation / assainissementLes entrées sont validées côté API avec des schémas de requêtes : champs obligatoires, formats courriel/téléphone/MSISDN, longueurs maximales, types attendus et valeurs autorisées. Les données invalides retournent une erreur JSON normalisée.Gestion des secretsLes secrets sont fournis par variables d’environnement ou fichier .env non versionné. Aucun mot de passe, clé API, secret JWT ou accès base de données n’est inscrit en clair dans le code ou le dépôt Git.8.6 Contrôles anti-fraude
+[À compléter — détection SIM swap, usurpation d’identité, usage anormal / roaming ; règles et tests associés]
+Les contrôles anti-fraude sont appliqués sur les opérations sensibles afin de réduire les risques d’usurpation d’identité, de SIM swap non autorisé, d’usage anormal et de roaming suspect. Les règles sont évaluées par les services métier concernés et les résultats sont journalisés dans le service svc-conformite-audit.
+Risque détectéRègles de détectionRéaction du systèmeTests associésSIM swap suspectDemande de changement SIM/eSIM peu après une connexion inhabituelle, plusieurs changements SIM sur une courte période, ou incohérence entre le client, la ligne et la SIM.Exiger MFA renforcé, bloquer temporairement l’opération ou créer une alerte fraude.Test de changement SIM avec client valide; test de changement répété; test de SIM déjà associée à une autre ligne.Usurpation d’identitéÉchec KYC, score de risque élevé, données d’identité incohérentes ou plusieurs tentatives d’inscription avec les mêmes informations.Refuser l’inscription, conserver le profil en attente ou transmettre une alerte au journal d’audit.Test KYC accepté; test KYC refusé; test score de risque élevé.Usage anormalVolume voix/SMS/data largement supérieur au profil habituel ou forte augmentation soudaine de consommation.Générer une alerte fraude et rendre l’usage visible au back-office.Test CDR normal; test CDR avec consommation excessive; vérification de création d’alerte.Roaming suspectUsage en itinérance immédiatement après activation, changement rapide de zone géographique ou consommation roaming élevée.Créer une alerte, demander validation supplémentaire ou limiter certaines opérations sensibles.Test usage local; test roaming élevé; test roaming juste après activation.Tentatives MFA répétéesPlusieurs codes OTP invalides ou expirés dans une courte période.Bloquer temporairement la session, exiger un nouveau challenge MFA et journaliser l’échec.Test MFA valide; test MFA invalide; test dépassement du nombre maximal de tentatives.
+8.7 Gestion d’erreurs & versionnement
+[À compléter — format d’erreur JSON unifié, mapping vers codes HTTP, cohérence inter-services, politique de versionnement /v1]
+Les services utilisent un format d’erreur JSON uniforme afin d’assurer une cohérence entre l’API Gateway et les microservices. Chaque erreur contient un code applicatif, un message lisible, un identifiant de corrélation et un horodatage.
+Format d’erreur JSON unifié
+
+Code HTTPUtilisation400 Bad RequestRequête invalide, champ manquant ou format incorrect.401 UnauthorizedAuthentification absente, invalide ou expirée.403 ForbiddenUtilisateur authentifié, mais non autorisé pour l’opération.404 Not FoundRessource inexistante : client, commande, ligne, facture.409 ConflictConflit métier : double soumission différente, MSISDN déjà utilisé, facture déjà payée.422 Unprocessable Entity
+Requête valide au format, mais impossible selon les règles métier.429 Too Many RequestsLimite de requêtes dépassée sur une route protégée.500 Internal Server ErrorErreur technique non prévue.503 Service Unavailable
+Service interne ou système simulé temporairement indisponible.
+Cohérence inter-services
+Tous les services retournent la même structure d’erreur et propagent le traceId reçu de l’API Gateway. Si aucun traceId n’est fourni, la Gateway ou le service appelé en génère un. Cela permet de relier une erreur HTTP aux logs applicatifs, aux métriques Prometheus et aux événements d’audit.
+Politique de versionnement
+Les API publiques sont versionnées avec le préfixe /v1, par exemple /v1/customers, /v1/orders, /v1/activations, /v1/invoices et /v1/payments. Les changements compatibles restent dans /v1. Les changements incompatibles nécessitent une nouvelle version, par exemple /v2, afin de préserver la compatibilité avec les clients existants.
+8.8 Observabilité (4 Golden Signals)
+Golden SignalMétriqueCibleLatenceP95 / P99P95 ? 500 msTraficRPS? 600 ops/sErreursTaux 4xx / 5xx4xx suivis par type d’erreur; 5xx < 1 %SaturationCPU / RAM / threadsCPU < 80 %, RAM < 80 %, aucune saturation durable des connexions BDChaque service expose un endpoint /metrics consommé par Prometheus et un endpoint /health utilisé pour les healthchecks. Grafana présente les dashboards des quatre Golden Signals : latence P95/P99, trafic RPS, taux d’erreurs 4xx/5xx et saturation des ressources. Les logs structurés incluent au minimum timestamp, level, service, traceId, method, path, statusCode et durationMs, afin de corréler les erreurs avec les requêtes et les événements d’audit.
+Logs structurés + Prometheus + dashboards Grafana ; captures au §10.5.
+8.9 Caching
+[À compléter — endpoints mis en cache (catalogue de forfaits, consultation usage), TTL, invalidation lors des mises à jour catalogue, risque de données périmées (stale) — gains chiffrés au §10.7]
+Le caching est utilisé pour réduire la latence et la charge sur la base de données pour les endpoints fréquemment consultés ou coûteux. En Phase 1, le cache peut être réalisé avec Redis ou un cache mémoire local selon la complexité retenue.
+Endpoint / donnéeStratégie de cacheTTLInvalidationCatalogue de forfaits /v1/offers, /v1/plans, /v1/optionsCache Redis des offres actives et options disponibles.5 à 15 minutesInvalidation lors d’une création, modification, désactivation ou nouvelle version d’offre.Détail d’une offre /v1/offers/{offerId}Cache par identifiant d’offre et version.15 minutes
+Invalidation si l’offre ou sa version est modifiée.Consultation usage /v1/usage?lineId=...Cache court pour l’usage courant afin de réduire les lectures répétées.30 à 60 secondesExpiration automatique courte; invalidation possible après réception de nouveaux CDR.Factures consultées /v1/invoices/{invoiceId}Cache lecture seule pour les factures déjà générées.5 minutesInvalidation après paiement ou correction de facture.
+Le cache est utilisé uniquement sur les données dont une légère fraîcheur imparfaite est acceptable, comme le catalogue d’offres ou la consultation d’usage courant. Les opérations critiques d’écriture, comme la création de commande, l’activation de ligne, le paiement et la facturation, ne sont pas servies directement depuis le cache. En cas de mise à jour du catalogue ou de paiement d’une facture, les clés concernées sont invalidées afin de limiter le risque de données périmées.
+9. Décisions d’architecture (ADR)
+Objectif Arc42 — Consigner les décisions structurantes au format ADR (statut, contexte, décision, conséquences), chacune traçable à une exigence du cahier.
+Repères de l’énoncé
+Tâches de l’énoncé : 2.4 Consigner les décisions structurantes (? 3 ADR).
+Livrables attendus :
+• ADR-001 — Style architectural & découpage en services.
+• ADR-002 — Persistance & transactions (idempotence / exactly-once / journal append-only — conformité CRTC/Loi 25).
+• ADR-003 — Stratégie d’erreurs & versionnement d’API.
+Critères d’acceptation (à cocher)
+?  Format ADR complet (statut, contexte, décision, conséquences).
+?  Chaque ADR explicitement traçable à une exigence du cahier.
+
+ADR-001 — Style architectural & découpage en services
+StatutAcceptéContexteCanTelcoX doit offrir plusieurs capacités métier distinctes: gestion des clients, catalogue d’offres, commandes, activation de lignes, usage/facturation et conformité/audit. Le système doit être démontrable dans une VM, exposer des API REST, supporter l’observabilité, l’idempotence et une évolution future par domaine métier. Une architecture trop monolithique rendrait le découpage DDD, les tests, le déploiement et l’évolution plus difficiles.DécisionAdopter une architecture orientée services, proche microservices, découpée selon les bounded contexts DDD: svc-clients-identite, svc-catalogue-offres, svc-commandes-activations, svc-lignes-services, svc-usage-facturation et svc-conformite-audit. Chaque service possède sa responsabilité métier, son API REST, sa couche domaine, saConséquencesLe découpage améliore la séparation des responsabilités, la traçabilité entre cas d’utilisation et domaines, l’évolutivité, l’observabilité par service et la possibilité de répliquer certains services indépendamment. Il facilite aussi l’application du style hexagonal et la documentation OpenAPI par service.
+En contrepartie, l’architecture ajoute de la complexité opérationnelle : plusieurs conteneurs, plusieurs APIs, communication inter-services, configuration Gateway et observabilité distribuée. Des mécanismes supplémentaires sont donc nécessaires pour gérer les erreurs, l’idempotence, les timeouts et la cohérence des données entre services.Exigence du cahier tracéeObjectifs d’apprentissage sur le découpage architectural, la documentation Arc42/4+1/ADR, l’exposition d’API REST, la conteneurisation Docker Compose, l’observabilité et la séparation en services alignés sur les domaines métier
+ADR-002 — Persistance & transactions (idempotence / exactly-once / append-only)
+StatutAcceptéContexteCanTelcoX traite des opérations sensibles comme la création de commandes, l’activation de lignes, la facturation, les paiements et les événements de conformité. Ces opérations ne doivent pas produire de doublons en cas de retry, timeout ou double soumission. Le système doit aussi conserver une trace fiable des opérations critiques pour répondre aux exigences de conformité télécom, CRTC simulé et protection des renseignements personnels.DécisionUtiliser une persistance relationnelle MySQL avec transactions locales par service. Les commandes, activations et paiements utilisent une clé Idempotency-Key. Les écritures de facturation appliquent une garantie exactly-once logique grâce à la déduplication, aux contraintes d’unicité et aux transactions. Les événements critiques sont enregistrés dans un journal d’audit append-only, sans modification ni suppression des événements existants.ConséquencesCette décision réduit les effets de bord lors des doubles soumissions et améliore l’intégrité des données. Elle permet de garantir qu’une commande, une activation, un paiement ou une écriture de facturation ne soit appliqué qu’une seule fois. Le journal append-only améliore la traçabilité et la conformité. En contrepartie, l’implémentation demande plus de rigueur: tables d’idempotence, contraintes d’unicité, gestion des transactions, stockage des réponses rejouables et règles strictes sur les événements d’audit.Exigence du cahier tracéeExigences liées à la persistance, à l’intégrité transactionnelle, à l’idempotence, à l’exactly-once pour la facturation, au journal d’audit append-only, à la conformité CRTC simulée et à la Loi 25 / protection des renseignements personnels.
+ADR-003 — Stratégie d’erreurs & versionnement d’API
+StatutAcceptéContexteCanTelcoX expose plusieurs API REST à travers une API Gateway et plusieurs services internes. Les clients, les tests, les logs et les dashboards doivent pouvoir interpréter les erreurs de manière cohérente. Sans format commun, chaque service pourrait retourner des erreurs différentes, ce qui compliquerait le débogage, l’observabilité et la documentation OpenAPI. Le système doit aussi pouvoir évoluer sans briser les clients existants.DécisionDéfinir un format JSON d’erreur uniforme pour tous les services, contenant au minimum code, message, details, traceId et timestamp. Les erreurs sont mappées vers des codes HTTP standards: 400, 401, 403, 404, 409, 422, 429, 500 et 503. Toutes les API publiques sont versionnées avec le préfixe /v1.ConséquencesCette décision améliore la cohérence entre les services, facilite les tests automatisés, la documentation OpenAPI, la corrélation avec les logs et l’analyse dans Prometheus/Grafana. Le traceId permet de suivre une requête de bout en bout. En contrepartie, tous les services doivent respecter la même convention d’erreur et maintenir la compatibilité des routes /v1. Les changements incompatibles devront être introduits dans une nouvelle version, par exemple /v2.Exigence du cahier tracéeExigences liées à l’exposition d’API REST publiques, à la documentation OpenAPI/Swagger, à la gestion d’erreurs JSON normalisée, à l’observabilité, à la traçabilité des requêtes et à la politique de versionnement /v1.
+Ajoutez un ADR-004 (et suivants) au besoin, en réutilisant le même tableau.
+10. Exigences de qualité
+Objectif Arc42 — Arbre de qualité et scénarios de qualité concrets ; cibles NFR, stratégie de validation (tests) et résultats mesurés. Couvre la vue Scénarios de 4+1.
+Repères de l’énoncé
+Tâches de l’énoncé : 5.2 tests de charge ; 5.3 load balancing ; 5.4 caching ; 6.2 direct vs Gateway ; 7.1 stratégie de tests.
+Vue 4+1 : Scénarios.
+Livrables attendus :
+• Arbre de qualité + scénarios de qualité mesurables.
+• Cibles NFR et stratégie de tests (pyramide unit ? intégration ? E2E).
+• Plans de campagnes de charge (UC-03/04/05/08) et de comparaison (N=1..4, cache, Gateway).
+Critères d’acceptation (à cocher)
+?  Paliers NFR cibles atteints (ou écarts argumentés) : P95 ? 500 ms, ? 600 ops/s, dispo 95 %.
+?  Couverture ? 80 % sur le domaine critique ; ? 1 scénario E2E via la Gateway.
+
+10.1 Arbre de qualité
+[À compléter — arbre de qualité : performance, disponibilité, sécurité, auditabilité, maintenabilité (priorisation)]
+10.2 Scénarios de qualité
+AttributStimulusRéponse attendue / mesurePerformanceConsultation usage à cadence élevée (UC-04)P95 ? 500 msCapacitéMontée en charge? 600 ops/s avant saturationDisponibilitéKill d’une instance en chargeMaintien de 95 % de disponibilitéSécuritéOpération sensible sans MFARefus + journalisation[À compléter — autre][À compléter — …][À compléter — …]10.3 Cibles NFR & résultats
+IndicateurCibleMesuréVerdictLatence P95? 500 ms[À compléter — …][À compléter — ? / écart]Débit? 600 ops/s[À compléter — …][À compléter — …]Disponibilité95 %[À compléter — …][À compléter — …]Synthèse ; le détail des mesures et les captures figurent aux §10.5 à §10.8.
+10.4 Stratégie de tests & couverture
+[À compléter — pyramide de tests (unit ? intégration ? E2E), scénarios E2E télécom (inscription ? MFA ? activation ? souscription ? paiement)]
+Couverture mesurée sur le domaine critique : [À compléter] % (cible ? 80 %).
+10.5 Résultats des campagnes de charge
+Scénarios k6/JMeter/Artillery — stress progressif jusqu’au seuil de saturation :
+Scénario de chargeCharge nominaleSeuil de saturationP95UC-04 — Consultation usage[À compléter — …][À compléter — …][À compléter — …]UC-05 — Prise de commande[À compléter — …][À compléter — …][À compléter — …]UC-03 — Activation[À compléter — …][À compléter — …][À compléter — …]UC-02 — Authentification MFA[À compléter — …][À compléter — …][À compléter — …]UC-08 — Facturation[À compléter — …][À compléter — …][À compléter — …][À compléter — insérer les captures des dashboards Grafana (4 Golden Signals : P95/P99, RPS, 4xx/5xx, saturation) et les courbes de charge]
+10.6 Load balancing (N = 1..4) & tolérance aux pannes
+N instancesRPSP95 (ms)ErreursSaturation1[À compléter — …][À compléter — …][À compléter — …][À compléter — …]2[À compléter — …][À compléter — …][À compléter — …][À compléter — …]3[À compléter — …][À compléter — …][À compléter — …][À compléter — …]4[À compléter — …][À compléter — …][À compléter — …][À compléter — …]Tolérance aux pannes (kill d’instance en charge) : [À compléter — maintien de 95 % de disponibilité].
+10.7 Caching (on / off)
+EndpointP95 sans cacheP95 avec cacheCharge DBGain[À compléter — catalogue][À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — usage][À compléter — …][À compléter — …][À compléter — …][À compléter — …]10.8 Appels directs vs via Gateway
+TrajetP95 (ms)ErreursTraçabilitéDirect[À compléter — …][À compléter — …][À compléter — …]Via Gateway[À compléter — …][À compléter — …][À compléter — …]11. Risques et dette technique
+Objectif Arc42 — Identifier les risques d’architecture connus et la dette technique, avec leurs mesures d’atténuation.
+Risque / detteImpactProbabilitéAtténuation[À compléter — ex. point unique de défaillance Gateway][À compléter — …][À compléter — …][À compléter — …][À compléter — ex. données périmées en cache][À compléter — …][À compléter — …][À compléter — invalidation…][À compléter — …][À compléter — …][À compléter — …][À compléter — …]12. Glossaire
+Objectif Arc42 — Définir le langage ubiquitaire (DDD) et les acronymes pour une compréhension commune.
+Repères de l’énoncé
+Tâches de l’énoncé : 1.2 ubiquitous language.
+Livrables attendus :
+• Glossaire métier (langage ubiquitaire) + acronymes.
+Critères d’acceptation (à cocher)
+?  Glossaire validé.
+
+12.1 Langage métier
+TermeDéfinitionBounded context[À compléter — ex. MSISDN][À compléter — identifiant de ligne mobile]Lignes & Services[À compléter — ex. Forfait][À compléter — …]Catalogue & Offres[À compléter — …][À compléter — …][À compléter — …]12.2 Acronymes
+AcronymeSignificationBSSBusiness Support SystemCRTCConseil de la radiodiffusion et des télécommunications canadiennesHLR/HSSHome Location Register / Home Subscriber ServerMSISDNMobile Station International Subscriber Directory NumberMFA / OTPAuthentification multifacteur / mot de passe à usage uniqueNFRExigence non fonctionnelleADRArchitecture Decision RecordTMFTM Forum (Open APIs)[À compléter — …][À compléter — …]Annexe A — Contrats d’API & catalogue d’endpoints
+Référez le fichier OpenAPI/Swagger publié et la collection Postman (chemins dans le dépôt).
+Méthode + Route (/v1)UCServiceAuth / MFA[À compléter — POST /v1/customers]UC-01[À compléter — …][À compléter — …][À compléter — POST /v1/auth/mfa]UC-02[À compléter — …]MFA[À compléter — POST /v1/lines/{id}/activate]UC-03[À compléter — …]MFA[À compléter — GET /v1/usage]UC-04[À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — …]Liens : Swagger = [À compléter] · Postman = [À compléter]
+Annexe B — Schéma de persistance
+Modèle logique (ER/UML) par service, choix ORM/DAO, contraintes, migrations et données seed.
+[À compléter — insérer le(s) diagramme(s) ER/UML par service]
+ÉlémentDétailContraintes d’intégrité[À compléter — unicité MSISDN, FK profils ? lignes, index]Migrations[À compléter — outil, reproductibilité]Données seed[À compléter — catalogue de forfaits, abonnés et lignes de test]Tests d’intégration[À compléter — sur DB conteneurisée]Annexe C — CI/CD, conteneurisation & exploitation
+ÉlémentDétailDockerfiles[À compléter — multi-stage par service]docker-compose.yml[À compléter — services + DB + Prometheus + Grafana + Gateway + cache + seed]Healthchecks/health par servicePipeline CI[À compléter — lint ? build ? tests (unit/int/E2E) ? artefacts ; < 10 min ; badge]Job CD (VM)[À compléter — script de déploiement, rollback simple]Runbook & guide de démo[À compléter — opérations, observabilité, gestion des pannes ; reproductibilité < 30 min]Annexe D — Traçabilité, Définition de Fini & auto-évaluation
+D.1 Matrice de traçabilité (livrables & critères d’acceptation)
+Cochez chaque case (?) lorsque le livrable est produit et le critère d’acceptation satisfait ; indiquez la preuve (figure, section ou chemin dans le dépôt). « Empl. » renvoie à la section du présent document.
+TâcheLivrables ? empl.Critères d’acceptation ? empl.PreuveFait1) Analyse métier & DDD1.1 UC Must§1.1, §1.2§1.2 — ? 5 UC validés[…]?  Livrable
+?  CA1.2 DDD§3.1, §3.3, §5.3, §12.1§12.1 ; §5.3 ; §3.3+§4.1[…]?  Livrable
+?  CA2) Architecture & décisions2.1 Services§4.1, §4.2, §5.2§4.2, §5.1 ; §4.1[…]?  Livrable
+?  CA2.2 API REST§4.3, §4.4, Annexe AAnnexe A ; §5.2/§5.4[…]?  Livrable
+?  CA2.3 4+1 / Arc42§5, §6, §7, §1.2/§10 ; §1?§12figures : §3.1, §5.1, §5.2, §6, §7.1[…]?  Livrable
+?  CA2.4 ADR (? 3)§9 (ADR-001/002/003)§9 — tracé au cahier[…]?  Livrable
+?  CA3) Persistance & intégrité3.1 Schéma§8.1, Annexe BAnnexe B — migrations, seeds[…]?  Livrable
+?  CA3.2 Intégrité§8.2, §8.3, §8.4, Annexe B§8.1–8.2 ; §6.3[…]?  Livrable
+?  CA4) Implémentation & API REST sécurisée4.1 Domaine§5.3, §8.5, §8.6§5.3 ; §10.4[…]?  Livrable
+?  CA4.2 Ports/adapt.§3.2, §5.2§5.2/§5.4[…]?  Livrable
+?  CA4.3 API E2E§6.1, Annexe A§6.1 ; §8.7[…]?  Livrable
+?  CA4.4 Sécurité§8.5§8.5 — MFA UC-02/03[…]?  Livrable
+?  CA5) Observabilité, charge & optimisation5.1 Observ.§8.8, §10.5§10.5 ; §10.3[…]?  Livrable
+?  CA5.2 Charge§10.5§10.5 ; §10.3[…]?  Livrable
+?  CA5.3 Load balancing§7.3, §10.6§10.6[…]?  Livrable
+?  CA5.4 Caching§8.9, §10.7§8.9 ; §10.7[…]?  Livrable
+?  CA6) API Gateway6.1 Gateway§7.2§7.2[…]?  Livrable
+?  CA6.2 Direct vs GW§10.8§10.8 ; §10.5[…]?  Livrable
+?  CA7) Qualité, tests & sécurité7.1 Tests§10.4§10.4 ; §6.1[…]?  Livrable
+?  CA7.2 Séc./erreurs§8.5, §8.6, §8.7§8.5/§8.6/§8.7[…]?  Livrable
+?  CA8) CI/CD & conteneurisation8.1 Conteneurs§7.1, Annexe CAnnexe C — compose up, /health[…]?  Livrable
+?  CA8.2 CIAnnexe CAnnexe C — CI < 10 min[…]?  Livrable
+?  CA8.3 CDAnnexe CAnnexe C — déploiement 1 commande[…]?  Livrable
+?  CA9) Documentation finale & démo9.1 Doc finaleDocument entier, Annexe CAnnexe C ; Annexe D.2 (DoD)[…]?  Livrable
+?  CA9.2 Comparatif§10.3, §10.6–10.8§10.3 ; §10.5–10.8[…]?  Livrable
+?  CAD.2 Définition de Fini (DoD)
+?  ? 5 UC Must implémentés bout-en-bout via l’API REST, erreurs normalisées.
+?  ? 2 microservices conteneurisés + DB + Prometheus + Grafana + API Gateway, déployables via docker-compose.
+?  Idempotence (commandes/activations), exactly-once (facturation), journal append-only opérationnels.
+?  Tests automatisés en CI (unit, intégration, E2E), couverture ? 80 % sur le domaine critique.
+?  4 Golden Signals observés ; paliers NFR atteints ou écarts argumentés (P95 ? 500 ms, ? 600 ops/s, dispo 95 %).
+?  Campagnes de charge avec comparatifs (avant/après, N = 1..4), tolérance aux pannes démontrée.
+?  LB et cache en production (compose) avec impacts chiffrés.
+?  API Gateway opérationnelle ; direct vs gateway comparés et argumentés.
+?  4+1 cohérent, Arc42 (sections cœur), ? 3 ADR approuvés ; CI/CD fonctionnels.
+?  Logs structurés ; runbook & guide de démo à jour.
+?  Rapport PDF + dépôt projet (zip) remis sur Moodle ; reproductibilité < 30 min sur VM.
+D.3 Auto-évaluation (grille de l’énoncé)
+CritèrePond.Section(s) de preuveAuto-éval1. Analyse métier & DDD12 %§1, §3.3, §5.3, §12[À compléter — A/B/C/D/F]2. Architecture, décisions & API REST18 %§4, §5, §9, Annexe A[À compléter — …]3. Persistance & intégrité12 %§8.1–8.4, Annexe B[À compléter — …]4. Microservices & API Gateway18 %§5.1, §7.2, §10.8[À compléter — …]5. Observabilité & tests de charge10 %§8.8, §10.5[À compléter — …]6. Load balancing & caching10 %§7.3, §8.9, §10.6–10.7[À compléter — …]7. Qualité, tests & sécurité10 %§8.5–8.7, §10.4[À compléter — …]8. CI/CD, documentation & démo10 %§7.1, Annexe C[À compléter — …]Annexe E — Soutenance et démonstration (20 %)
+Durée : 12 à 15 minutes de présentation + questions. Objectif : démontrer que l’architecture décrite fonctionne et que les décisions sont défendables.
+E.1 Déroulé attendu
+ÉtapeContenuDurée1. Contexte & objectifs de qualitéMission CanTelcoX, cibles NFR (P95 ? 500 ms, ? 600 ops/s, dispo 95 %)1–2 min2. Tour d’architectureCarte de contextes (DDD) et choix structurants3–4 min3. Démo en directScénario de bout en bout : déclenchement via une API, propagation entre contextes4–5 min4. Défense d’un ADRPourquoi cette décision, quelles alternatives écartées2 min5. QuestionsÉchange avec le jury3–4 minE.2 Grille de soutenance
+Critère de soutenance / démoPtsMaîtrise de l’architecture présentée (vocabulaire, justesse)5Démonstration fonctionnelle d’un scénario de bout en bout5Justification des décisions (au moins un ADR défendu)4Qualité des réponses aux questions3Clarté, structure et respect du temps3TOTAL — SOUTENANCE20E.3 Plan de soutenance (à préparer)
+Scénario E2E démontré[À compléter — ex. inscription ? MFA ? activation ? souscription ? consultation usage]ADR défendu[À compléter — ex. ADR-001 — découpage en services ; alternatives écartées]Répartition des intervenants[À compléter — qui présente quoi, minutage]Environnement de démo[À compléter — VM, docker compose up, jeux de données seed, comptes de test]Plan B (si la démo échoue)[À compléter — captures/vidéo de secours, scénario dégradé]
+LOG430 — Phase 1 (microservices) · Été 2026	Page 1 / 1
+© Pierre Gauthier, Fabio Petrillo — Été 2026 · École de technologie supérieure (ÉTS)
+

@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS orders (
   offer_id VARCHAR(80) NOT NULL,
   order_type VARCHAR(60) NOT NULL,
   status VARCHAR(40) NOT NULL,
+  orchestration_status VARCHAR(60) NOT NULL DEFAULT 'READY_FOR_ACTIVATION',
+  confirmation_status VARCHAR(60) NOT NULL DEFAULT 'SIMULATED_SENT',
   total_amount DECIMAL(10,2) NOT NULL,
   currency CHAR(3) NOT NULL,
   idempotency_key VARCHAR(160) NOT NULL,

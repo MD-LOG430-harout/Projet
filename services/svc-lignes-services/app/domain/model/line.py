@@ -13,4 +13,6 @@ class Line:
     supi: str
     status: str
     hlr_status: str
+    number_mode: str = "NEW"
+    portability_status: str | None = None
     failure_reason: str | None = None

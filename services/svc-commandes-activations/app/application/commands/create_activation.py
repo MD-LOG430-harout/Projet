@@ -49,6 +49,7 @@ class CreateActivation:
                     "offerId": offer_id,
                     "simType": payload["simType"],
                     "msisdn": payload.get("msisdn"),
+                    "numberMode": payload["numberMode"],
                 },
                 trace_id=trace_id,
             )
@@ -67,6 +68,8 @@ class CreateActivation:
             "simType": line["simType"],
             "simIdentifier": line["simIdentifier"],
             "hlrStatus": line["hlrStatus"],
+            "numberMode": line.get("numberMode"),
+            "portabilityStatus": line.get("portabilityStatus"),
         }
         activation = Activation(
             activation_id=activation_id,
@@ -91,6 +94,12 @@ class CreateActivation:
         if (payload.get("simType") or "").upper() not in {"SIM", "ESIM"}:
             raise ApiError(400, "validation_error", "simType must be SIM or ESIM", {"field": "simType"})
         payload["simType"] = payload["simType"].upper()
+        number_mode = (payload.get("numberMode") or ("PORT_IN" if payload.get("msisdn") else "NEW")).upper()
+        if number_mode not in {"NEW", "PORT_IN"}:
+            raise ApiError(400, "validation_error", "numberMode must be NEW or PORT_IN", {"field": "numberMode"})
+        if number_mode == "PORT_IN" and not payload.get("msisdn"):
+            raise ApiError(400, "validation_error", "msisdn is required when numberMode is PORT_IN", {"field": "msisdn"})
+        payload["numberMode"] = number_mode
 
     def _hash_payload(self, payload):
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))

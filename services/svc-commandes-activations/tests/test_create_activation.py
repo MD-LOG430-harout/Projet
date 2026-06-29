@@ -73,6 +73,8 @@ class Lines:
             "simType": payload["simType"],
             "simIdentifier": "ICCID-1",
             "hlrStatus": "PROVISIONED",
+            "numberMode": payload.get("numberMode", "NEW"),
+            "portabilityStatus": "ACCEPTED" if payload.get("numberMode") == "PORT_IN" else None,
         }
 
 
@@ -109,6 +111,44 @@ def test_successful_activation_and_idempotent_replay():
     assert first.get_json() == second.get_json()
     assert lines.calls == 1
     assert second.headers["Idempotency-Replayed"] == "true"
+
+
+def test_activation_supports_simulated_portability_with_existing_msisdn():
+    app = make_app()
+    client = app.test_client()
+    payload = {
+        "customerId": "cust-1",
+        "offerId": "forfait-5g-20gb",
+        "simType": "ESIM",
+        "numberMode": "PORT_IN",
+        "msisdn": "14385551234",
+    }
+
+    response = client.post("/v1/activations", json=payload, headers={"Idempotency-Key": "key-port-in"})
+
+    assert response.status_code == 201
+    body = response.get_json()
+    assert body["msisdn"] == "14385551234"
+    assert body["numberMode"] == "PORT_IN"
+    assert body["portabilityStatus"] == "ACCEPTED"
+
+
+def test_activation_requires_msisdn_for_simulated_portability():
+    response = make_app().test_client().post(
+        "/v1/activations",
+        json={
+            "customerId": "cust-1",
+            "offerId": "forfait-5g-20gb",
+            "simType": "ESIM",
+            "numberMode": "PORT_IN",
+        },
+        headers={"Idempotency-Key": "key-port-missing"},
+    )
+
+    assert response.status_code == 400
+    body = response.get_json()
+    assert body["code"] == "validation_error"
+    assert body["details"]["field"] == "msisdn"
 
 
 def test_missing_idempotency_key_returns_400():
