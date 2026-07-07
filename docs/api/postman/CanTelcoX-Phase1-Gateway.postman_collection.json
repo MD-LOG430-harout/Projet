@@ -2,30 +2,98 @@
   "info": {
     "name": "CanTelcoX Phase 1 - API Gateway",
     "_postman_id": "9bf3de49-65ee-4f79-a6c9-6db4a43235ff",
-    "description": "Gateway-only Postman collection for Phase 1 evidence. All CanTelcoX API calls go through NGINX at {{baseUrl}}. Folders are grouped by implemented UC/service.",
+    "description": "Gateway-only Postman collection for Phase 1 evidence. All CanTelcoX API calls go through NGINX at {{baseUrl}}. Folders are grouped by implemented UC/service. Start the official run from \"Register customer\"; its pre-request script generates a fresh email, TraceId, idempotency keys, and clears stale IDs automatically.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
-    { "key": "baseUrl", "value": "http://localhost:8080" },
-    { "key": "traceId", "value": "postman-phase1-demo" },
-    { "key": "email", "value": "postman-demo@example.test" },
-    { "key": "password", "value": "Stronger123" },
-    { "key": "customerId", "value": "" },
-    { "key": "challengeId", "value": "" },
-    { "key": "devOtp", "value": "" },
-    { "key": "sessionToken", "value": "" },
-    { "key": "offerId", "value": "forfait-5g-20gb" },
-    { "key": "idempotencyKey", "value": "postman-activation-demo-001" },
-    { "key": "portInIdempotencyKey", "value": "postman-portin-demo-001" },
-    { "key": "portInMsisdn", "value": "14385551234" },
-    { "key": "orderIdempotencyKey", "value": "postman-order-demo-001" },
-    { "key": "paymentIdempotencyKey", "value": "postman-payment-demo-001" },
-    { "key": "orderId", "value": "" },
-    { "key": "activationId", "value": "" },
-    { "key": "lineId", "value": "" },
-    { "key": "msisdn", "value": "" },
-    { "key": "invoiceId", "value": "" },
-    { "key": "paymentId", "value": "" }
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "traceId",
+      "value": "postman-phase1-demo"
+    },
+    {
+      "key": "email",
+      "value": "postman-demo@example.test"
+    },
+    {
+      "key": "password",
+      "value": "Stronger123"
+    },
+    {
+      "key": "customerId",
+      "value": ""
+    },
+    {
+      "key": "challengeId",
+      "value": ""
+    },
+    {
+      "key": "devOtp",
+      "value": ""
+    },
+    {
+      "key": "sessionToken",
+      "value": ""
+    },
+    {
+      "key": "offerId",
+      "value": "forfait-5g-20gb"
+    },
+    {
+      "key": "idempotencyKey",
+      "value": "postman-activation-demo-001"
+    },
+    {
+      "key": "portInIdempotencyKey",
+      "value": "postman-portin-demo-001"
+    },
+    {
+      "key": "portInMsisdn",
+      "value": "14385551234"
+    },
+    {
+      "key": "orderIdempotencyKey",
+      "value": "postman-order-demo-001"
+    },
+    {
+      "key": "paymentIdempotencyKey",
+      "value": "postman-payment-demo-001"
+    },
+    {
+      "key": "orderId",
+      "value": ""
+    },
+    {
+      "key": "activationId",
+      "value": ""
+    },
+    {
+      "key": "lineId",
+      "value": ""
+    },
+    {
+      "key": "msisdn",
+      "value": ""
+    },
+    {
+      "key": "invoiceId",
+      "value": ""
+    },
+    {
+      "key": "paymentId",
+      "value": ""
+    },
+    {
+      "key": "runNonce",
+      "value": ""
+    },
+    {
+      "key": "identityDocumentNumber",
+      "value": ""
+    }
   ],
   "item": [
     {
@@ -35,13 +103,34 @@
           "name": "Register customer",
           "event": [
             {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
+                  "const nonce = `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;",
+                  "const msisdnSuffix = String(Math.floor(100000000 + Math.random() * 900000000));",
+                  "setVar('runNonce', nonce);",
+                  "setVar('traceId', `postman-phase1-${nonce}`);",
+                  "setVar('email', `postman-${nonce}@example.test`);",
+                  "setVar('identityDocumentNumber', `D-${nonce}`);",
+                  "setVar('idempotencyKey', `postman-activation-${nonce}`);",
+                  "setVar('portInIdempotencyKey', `postman-portin-${nonce}`);",
+                  "setVar('orderIdempotencyKey', `postman-order-${nonce}`);",
+                  "setVar('paymentIdempotencyKey', `postman-payment-${nonce}`);",
+                  "setVar('portInMsisdn', `1438${msisdnSuffix}`);"
+                ]
+              }
+            },
+            {
               "listen": "test",
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('201 Created', function () { pm.response.to.have.status(201); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('customerId', json.customerId);",
+                  "setVar('customerId', json.customerId);",
                   "pm.test('customer active and verified', function () {",
                   "  pm.expect(json.status).to.eql('ACTIVE');",
                   "  pm.expect(json.identityStatus).to.eql('VERIFIED');",
@@ -53,17 +142,29 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              }
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"displayName\": \"Postman Demo\",\n  \"legalName\": \"Postman Demo\",\n  \"customerType\": \"individual\",\n  \"address\": {\n    \"line1\": \"123 Rue Test\",\n    \"city\": \"Montreal\",\n    \"province\": \"QC\",\n    \"postalCode\": \"H1A1A1\"\n  },\n  \"identityDocument\": {\n    \"type\": \"driver_license\",\n    \"number\": \"D1234567\",\n    \"issuingProvince\": \"QC\",\n    \"expiryDate\": \"2030-12-31\"\n  }\n}"
+              "raw": "{\n  \"email\": \"{{email}}\",\n  \"password\": \"{{password}}\",\n  \"displayName\": \"Postman Demo\",\n  \"legalName\": \"Postman Demo\",\n  \"customerType\": \"individual\",\n  \"address\": {\n    \"line1\": \"123 Rue Test\",\n    \"city\": \"Montreal\",\n    \"province\": \"QC\",\n    \"postalCode\": \"H1A1A1\"\n  },\n  \"identityDocument\": {\n    \"type\": \"driver_license\",\n    \"number\": \"{{identityDocumentNumber}}\",\n    \"issuingProvince\": \"QC\",\n    \"expiryDate\": \"2030-12-31\"\n  }\n}"
             },
             "url": {
               "raw": "{{baseUrl}}/v1/customers/register",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "customers", "register"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "customers",
+                "register"
+              ]
             }
           }
         }
@@ -80,10 +181,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('202 MFA required', function () { pm.response.to.have.status(202); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('challengeId', json.challengeId);",
-                  "pm.collectionVariables.set('devOtp', json.devOtp);"
+                  "setVar('challengeId', json.challengeId);",
+                  "setVar('devOtp', json.devOtp);"
                 ]
               }
             }
@@ -91,8 +193,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -100,8 +208,14 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/auth/login",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "auth", "login"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "login"
+              ]
             }
           }
         },
@@ -113,9 +227,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('200 authenticated', function () { pm.response.to.have.status(200); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('sessionToken', json.sessionToken);"
+                  "setVar('sessionToken', json.sessionToken);"
                 ]
               }
             }
@@ -123,8 +238,14 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -132,8 +253,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/auth/mfa/verify",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "auth", "mfa", "verify"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "auth",
+                "mfa",
+                "verify"
+              ]
             }
           }
         },
@@ -153,13 +281,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/customers/{{customerId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "customers", "{{customerId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "customers",
+                "{{customerId}}"
+              ]
             }
           }
         }
@@ -176,10 +316,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('200 active offers', function () { pm.response.to.have.status(200); });",
                   "var json = pm.response.json();",
                   "pm.test('offers returned', function () { pm.expect(json.offers.length).to.be.above(0); });",
-                  "pm.collectionVariables.set('offerId', json.offers[0].offerId);"
+                  "setVar('offerId', json.offers[0].offerId);"
                 ]
               }
             }
@@ -187,13 +328,24 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/offers",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "offers"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offers"
+              ]
             }
           }
         },
@@ -205,9 +357,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('201 order created', function () { pm.response.to.have.status(201); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('orderId', json.orderId);",
+                  "setVar('orderId', json.orderId);",
                   "pm.test('order accepted', function () {",
                   "  pm.expect(json.status).to.eql('ACCEPTED');",
                   "  pm.expect(json.orchestrationStatus).to.eql('READY_FOR_ACTIVATION');",
@@ -221,10 +374,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{orderIdempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -232,8 +397,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/orders",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "orders"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders"
+              ]
             }
           }
         },
@@ -260,10 +430,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{orderIdempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{orderIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -271,8 +453,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/orders",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "orders"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "orders"
+              ]
             }
           }
         }
@@ -286,13 +473,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/offers/{{offerId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "offers", "{{offerId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "offers",
+                "{{offerId}}"
+              ]
             }
           }
         },
@@ -304,11 +503,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('201 activation created', function () { pm.response.to.have.status(201); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('activationId', json.activationId);",
-                  "pm.collectionVariables.set('lineId', json.lineId);",
-                  "pm.collectionVariables.set('msisdn', json.msisdn);",
+                  "setVar('activationId', json.activationId);",
+                  "setVar('lineId', json.lineId);",
+                  "setVar('msisdn', json.msisdn);",
                   "pm.test('line active and provisioned', function () {",
                   "  pm.expect(json.status).to.eql('ACTIVE');",
                   "  pm.expect(json.hlrStatus).to.eql('PROVISIONED');",
@@ -320,10 +520,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -331,8 +543,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/activations",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "activations"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "activations"
+              ]
             }
           }
         },
@@ -358,10 +575,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{idempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{idempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -369,8 +598,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/activations",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "activations"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "activations"
+              ]
             }
           }
         },
@@ -382,11 +616,12 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('201 port-in activation created', function () { pm.response.to.have.status(201); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('activationId', json.activationId);",
-                  "pm.collectionVariables.set('lineId', json.lineId);",
-                  "pm.collectionVariables.set('msisdn', json.msisdn);",
+                  "setVar('activationId', json.activationId);",
+                  "setVar('lineId', json.lineId);",
+                  "setVar('msisdn', json.msisdn);",
                   "pm.test('portability accepted', function () {",
                   "  pm.expect(json.numberMode).to.eql('PORT_IN');",
                   "  pm.expect(json.portabilityStatus).to.eql('ACCEPTED');",
@@ -399,10 +634,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{portInIdempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{portInIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -410,8 +657,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/activations",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "activations"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "activations"
+              ]
             }
           }
         },
@@ -420,13 +672,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/lines/{{lineId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "lines", "{{lineId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "lines",
+                "{{lineId}}"
+              ]
             }
           }
         }
@@ -443,10 +707,11 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('200 invoices', function () { pm.response.to.have.status(200); });",
                   "var json = pm.response.json();",
                   "pm.test('invoice returned', function () { pm.expect(json.invoices.length).to.be.above(0); });",
-                  "pm.collectionVariables.set('invoiceId', json.invoices[0].invoiceId);"
+                  "setVar('invoiceId', json.invoices[0].invoiceId);"
                 ]
               }
             }
@@ -454,15 +719,29 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/invoices?customerId={{customerId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "invoices"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "invoices"
+              ],
               "query": [
-                { "key": "customerId", "value": "{{customerId}}" }
+                {
+                  "key": "customerId",
+                  "value": "{{customerId}}"
+                }
               ]
             }
           }
@@ -485,13 +764,25 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "invoices", "{{invoiceId}}"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "invoices",
+                "{{invoiceId}}"
+              ]
             }
           }
         },
@@ -503,9 +794,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "const setVar = (key, value) => { pm.collectionVariables.set(key, value); if (pm.environment && pm.environment.name) { pm.environment.set(key, value); } };",
                   "pm.test('201 payment accepted', function () { pm.response.to.have.status(201); });",
                   "var json = pm.response.json();",
-                  "pm.collectionVariables.set('paymentId', json.paymentId);",
+                  "setVar('paymentId', json.paymentId);",
                   "pm.test('invoice paid', function () { pm.expect(json.invoiceStatus).to.eql('PAID'); });"
                 ]
               }
@@ -514,10 +806,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{paymentIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -525,8 +829,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}/payments",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "invoices", "{{invoiceId}}", "payments"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "invoices",
+                "{{invoiceId}}",
+                "payments"
+              ]
             }
           }
         },
@@ -551,10 +862,22 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" },
-              { "key": "Idempotency-Key", "value": "{{paymentIdempotencyKey}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{paymentIdempotencyKey}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -562,8 +885,15 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/invoices/{{invoiceId}}/payments",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "invoices", "{{invoiceId}}", "payments"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "invoices",
+                "{{invoiceId}}",
+                "payments"
+              ]
             }
           }
         }
@@ -590,15 +920,29 @@
           "request": {
             "method": "GET",
             "header": [
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "url": {
               "raw": "{{baseUrl}}/v1/audit-events?traceId={{traceId}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "audit-events"],
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "audit-events"
+              ],
               "query": [
-                { "key": "traceId", "value": "{{traceId}}" }
+                {
+                  "key": "traceId",
+                  "value": "{{traceId}}"
+                }
               ]
             }
           }
@@ -608,9 +952,18 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" },
-              { "key": "TraceId", "value": "{{traceId}}" },
-              { "key": "Authorization", "value": "Bearer {{sessionToken}}" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "TraceId",
+                "value": "{{traceId}}"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{sessionToken}}"
+              }
             ],
             "body": {
               "mode": "raw",
@@ -618,8 +971,13 @@
             },
             "url": {
               "raw": "{{baseUrl}}/v1/audit-events",
-              "host": ["{{baseUrl}}"],
-              "path": ["v1", "audit-events"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "audit-events"
+              ]
             }
           }
         }

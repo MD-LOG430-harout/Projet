@@ -169,7 +169,7 @@ def test_invoice_already_paid_returns_409_with_new_key():
     )
 
     assert response.status_code == 409
-    assert response.get_json()["code"] == "invoice_not_open"
+    assert response.get_json()["code"] == "invoice_already_paid"
 
 
 def test_payment_gateway_failure_returns_503_and_audits():

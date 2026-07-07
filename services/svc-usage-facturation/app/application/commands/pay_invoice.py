@@ -30,6 +30,8 @@ class PayInvoice:
             raise ApiError(404, "invoice_not_found", "Invoice not found", {"invoiceId": invoice_id})
         if invoice["customer_id"] != payload["customerId"]:
             raise ApiError(409, "invoice_customer_mismatch", "Invoice does not belong to the customer")
+        if invoice["status"] == "PAID":
+            raise ApiError(409, "invoice_already_paid", "Invoice is already paid", {"status": invoice["status"]})
         if invoice["status"] != "OPEN":
             raise ApiError(409, "invoice_not_open", "Invoice is not open for payment", {"status": invoice["status"]})
         if float(invoice["amount_due"]) != float(payload["amount"]):

@@ -27,14 +27,42 @@ def _offer_public(offer):
 
 @bp.get("/v1/offers/<offer_id>")
 def get_offer(offer_id):
+    cache = current_app.config.get("offer_cache")
+    cache_key = f"catalogue:offer:{offer_id}"
+    if cache:
+        cached = cache.get_json(cache_key)
+        if cached is not None:
+            response = jsonify(cached)
+            response.headers["X-Cache"] = "HIT"
+            return response
+
     use_case = GetOffer(current_app.config["offer_repository"])
-    return jsonify(_offer_public(use_case.execute(offer_id)))
+    payload = _offer_public(use_case.execute(offer_id))
+    if cache:
+        cache.set_json(cache_key, payload)
+    response = jsonify(payload)
+    response.headers["X-Cache"] = "MISS" if cache else "BYPASS"
+    return response
 
 
 @bp.get("/v1/offers")
 def list_offers():
+    cache = current_app.config.get("offer_cache")
+    cache_key = "catalogue:offers:active"
+    if cache:
+        cached = cache.get_json(cache_key)
+        if cached is not None:
+            response = jsonify(cached)
+            response.headers["X-Cache"] = "HIT"
+            return response
+
     use_case = ListOffers(current_app.config["offer_repository"])
-    return jsonify({"offers": [_offer_public(offer) for offer in use_case.execute()]})
+    payload = {"offers": [_offer_public(offer) for offer in use_case.execute()]}
+    if cache:
+        cache.set_json(cache_key, payload)
+    response = jsonify(payload)
+    response.headers["X-Cache"] = "MISS" if cache else "BYPASS"
+    return response
 
 
 @bp.get("/health")

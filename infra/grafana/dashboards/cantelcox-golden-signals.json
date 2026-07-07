@@ -27,7 +27,30 @@
       "targets": [
         {"expr": "histogram_quantile(0.95, sum(rate(cantelcox_http_request_duration_seconds_bucket[5m])) by (le, service))", "legendFormat": "{{service}}"}
       ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Latency P99",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "histogram_quantile(0.99, sum(rate(cantelcox_http_request_duration_seconds_bucket[5m])) by (le, service))", "legendFormat": "{{service}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Saturation - Process CPU",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(rate(process_cpu_seconds_total[1m])) by (job)", "legendFormat": "{{job}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Saturation - Process Memory",
+      "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+      "targets": [
+        {"expr": "sum(process_resident_memory_bytes) by (job)", "legendFormat": "{{job}}"}
+      ]
     }
   ]
 }
-

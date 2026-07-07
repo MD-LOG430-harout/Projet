@@ -1,0 +1,13 @@
+.git
+.github
+.env
+.env.*
+!.env.example
+__pycache__/
+*.py[cod]
+.pytest_cache/
+pytest-cache-files-*/
+.coverage
+docs/evidence/
+docs/free5gc-udm-min-max (2)/
+docs/free5gc-udm-min-max (2).zip

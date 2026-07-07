@@ -9,13 +9,14 @@ from services.shared.metrics import register_metrics
 from services.shared.mysql import connect_from_env
 
 from app.adapters.inbound.rest.routes import bp
+from app.adapters.outbound.cache.redis_offer_cache import RedisOfferCache
 from app.adapters.outbound.persistence.mysql_offer_repository import MysqlOfferRepository
 
 
 SERVICE_NAME = "svc-catalogue-offres"
 
 
-def create_app(offer_repository=None):
+def create_app(offer_repository=None, offer_cache=None):
     app = Flask(__name__)
     configure_json_logging(app, SERVICE_NAME)
     register_request_hooks(app, SERVICE_NAME)
@@ -31,6 +32,14 @@ def create_app(offer_repository=None):
     }
     connection_factory = lambda: connect_from_env(db_config)
     app.config["offer_repository"] = offer_repository or MysqlOfferRepository(connection_factory)
+    app.config["offer_cache"] = offer_cache
+    redis_url = os.getenv("REDIS_URL")
+    if offer_cache is None and redis_url:
+        app.config["offer_cache"] = RedisOfferCache(
+            redis_url,
+            os.getenv("OFFER_CACHE_TTL_SECONDS", "60"),
+        )
+    app.config["offer_cache_ttl_seconds"] = int(os.getenv("OFFER_CACHE_TTL_SECONDS", "60"))
     app.register_blueprint(bp)
     return app
 

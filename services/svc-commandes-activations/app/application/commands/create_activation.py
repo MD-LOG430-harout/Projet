@@ -8,12 +8,19 @@ from app.domain.model.activation import Activation
 
 
 class CreateActivation:
-    def __init__(self, activation_repository, customer_client, offer_client, line_client, audit_client=None):
+    SUMMARY_AUDIT_EVENTS = {
+        "ACTIVATION_COMPLETED",
+        "ACTIVATION_FAILED",
+        "ACTIVATION_BLOCKED_HIGH_RISK",
+    }
+
+    def __init__(self, activation_repository, customer_client, offer_client, line_client, audit_client=None, audit_level="detailed"):
         self.activation_repository = activation_repository
         self.customer_client = customer_client
         self.offer_client = offer_client
         self.line_client = line_client
         self.audit_client = audit_client
+        self.audit_level = audit_level
 
     def execute(self, payload, idempotency_key, trace_id=None):
         self._validate_payload(payload)
@@ -111,6 +118,8 @@ class CreateActivation:
 
     def _audit(self, event_type, activation_id, customer_id, result, trace_id, metadata=None):
         if not self.audit_client:
+            return
+        if self.audit_level == "summary" and event_type not in self.SUMMARY_AUDIT_EVENTS:
             return
         self.audit_client.record(
             {

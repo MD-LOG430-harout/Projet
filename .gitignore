@@ -1,0 +1,31 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Python caches and test artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+pytest-cache-files-*/
+.coverage
+coverage.xml
+htmlcov/
+
+# Generated evidence artifacts
+docs/evidence/
+
+# Local deployment/runtime state
+.deploy/
+
+# Editor and OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak

@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS invoices (
   created_at DATETIME NOT NULL,
   paid_at DATETIME NULL,
   KEY idx_invoices_customer (customer_id),
+  KEY idx_invoices_customer_status (customer_id, status),
   KEY idx_invoices_status (status)
 );
 

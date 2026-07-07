@@ -1,6 +1,6 @@
 # CanTelcoX Phase 1 Scope and Grading Alignment
 
-This document aligns the repository with the official LOG430 Phase 1 statement and evaluation rubric. It complements the Word/PDF project report and keeps the implementation plan traceable to the grading criteria.
+This document aligns the repository with the official LOG430 Phase 1 statement and evaluation rubric. It complements the Word/PDF project report and keeps the implementation plan traceable to the grading criteria. The detailed technology checklist is maintained in [Phase 1 Technology Compliance](phase1-technology-compliance.md).
 
 ## Phase 1 Functional Scope
 
@@ -48,7 +48,7 @@ The six service names from the project report are fixed:
 | Observability & load testing | `/metrics` support, Prometheus/Grafana config, `tests/load/locustfile.py` | Run and record load campaigns with screenshots/results |
 | Load balancing & caching | NGINX foundation and service-level routing | Demonstrate N=1..4 service replicas for command/billing paths |
 | Quality, tests & security | Service tests under `services/*/tests`, MFA, normalized errors, activation/payment idempotency tests | Add coverage evidence and final failure-path screenshots |
-| CI/CD, documentation & demo | Docker Compose, README, architecture docs | Add CI workflow and final demo runbook evidence |
+| CI/CD, documentation & demo | Docker Compose, README, architecture docs, `.github/workflows/phase1-ci.yml` | Capture the CI run and final demo evidence |
 
 ## Vertical Slice Order
 
@@ -81,9 +81,10 @@ The six service names from the project report are fixed:
    - audit events for requested, validated, risk checked, accepted, replayed, rejected, and simulated confirmation paths
 
 5. NFR demonstration slice:
-   - Locust scenarios for UC-02, UC-03, UC-05, UC-06
+   - Locust scenarios for UC-02 setup plus UC-03 and UC-05 through the gateway. UC-04 and UC-08 are out of scope, and UC-06 is tested functionally rather than used as an official Golden Signals load path.
    - Gateway vs direct measurements
-   - NGINX load balancing with N=1..4 replicas
+   - NGINX load balancing evidence with N=1..4 replicas where local resources allow
+   - Redis cache evidence for catalogue reads (`GET /v1/offers`, `GET /v1/offers/{offerId}`)
    - Payment/order idempotency and database integrity evidence
    - Prometheus/Grafana screenshots for 4 Golden Signals
 
@@ -97,6 +98,6 @@ The official targets are:
 | Throughput | >= 600 operations/s before saturation, or justified gap | Locust staged load results |
 | Availability | 95% during failure demonstration | Kill one replicated service instance under load, record successful requests/errors |
 | Errors | Controlled 4xx/5xx with normalized JSON | API tests and Grafana error-rate panels |
-| Saturation | CPU/RAM/thread pressure visible | Docker stats screenshots or Grafana host/container panels |
+| Saturation | CPU/RAM/thread pressure visible | Current Grafana evidence covers process CPU/RAM; Docker stats, cAdvisor, or node-exporter can be added as supplemental host/container evidence |
 
 If the local VM cannot reach a target, document the measured gap and the bottleneck instead of claiming success.

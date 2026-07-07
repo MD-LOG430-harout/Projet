@@ -1,5 +1,7 @@
 # CanTelcoX LOG430 Project
 
+[![Phase 1 CI](https://github.com/MD-LOG430-harout/Projet/actions/workflows/phase1-ci.yml/badge.svg)](https://github.com/MD-LOG430-harout/Projet/actions/workflows/phase1-ci.yml)
+
 ## Project Overview
 
 CanTelcoX is a LOG430 software architecture project for designing and implementing a modern Business Support System (BSS) for a fictional Canadian mobile operator.
@@ -107,6 +109,8 @@ UC-03 is implemented as activation orchestration. UC-05 creates the accepted ord
 
 The detailed UC-03 alternative-path coverage matrix is documented in [docs/architecture/uc03-activation-scope.md](docs/architecture/uc03-activation-scope.md).
 
+The Phase 1 test pyramid, coverage evidence, E2E gateway scenario, normalized-error checks, and security/risk controls are documented in [docs/architecture/test-strategy-security.md](docs/architecture/test-strategy-security.md).
+
 Architecture decision records are available under [docs/adr](docs/adr):
 
 - [ADR-001 - Service-Based Architecture and Bounded Contexts](docs/adr/ADR-001-service-style-and-boundaries.md)
@@ -119,6 +123,168 @@ The free5GC simulator integration notes are in [docs/runbooks/free5gc-simulator.
 By default, Docker Compose runs UC-03 with `HLR_ENABLED=false`, which uses `MockHlrAdapter` through the same outbound port as the real network adapter. To call the provided free5GC WebConsole instead, extract/start the simulator, set `HLR_ENABLED=true`, and configure `FREE5GC_WEBUI_URL`.
 
 ## Setup Instructions
+
+## Lancement rapide
+
+### Prerequisites
+
+- Docker Desktop with Docker Compose
+- Git
+- Python 3.12+ only if running tests outside Docker
+- Postman for the official demo flow
+
+### Environment file
+
+Create the local `.env` file from the tracked template:
+
+```bash
+cp .env.example .env
+```
+
+PowerShell equivalent:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The repository tracks `.env.example` only. The local `.env` file contains development/demo values for MySQL, Grafana, ports, free5GC adapter settings, and the simulated payment gateway. Do not commit real secrets.
+
+If `.env` already exists from an older run, either copy `.env.example` again or add any missing variables from the template before starting Docker Compose.
+
+### Start
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Expected result: MySQL becomes healthy, the bootstrap job creates the service schemas, all six Flask services become healthy, and NGINX exposes the API Gateway on `http://localhost:8080`.
+
+### Stop and Reset
+
+Stop without deleting data:
+
+```bash
+docker compose down
+```
+
+Reset volumes for a clean demo:
+
+```bash
+docker compose down -v
+```
+
+### Expected Ports
+
+| Component | URL |
+|---|---|
+| API Gateway | `http://localhost:8080` |
+| Swagger UI | `http://localhost:8081` |
+| Prometheus | `http://localhost:9090` |
+| Grafana | `http://localhost:3000` |
+| Locust, profile only | `http://localhost:8089` |
+| MySQL | `localhost:3306` |
+
+### Health Checks
+
+Gateway health:
+
+```bash
+curl -i http://localhost:8080/health
+```
+
+Container/service health:
+
+```bash
+docker compose ps
+```
+
+Each Flask service exposes `/health`; Docker Compose healthchecks call those endpoints directly inside the Docker network.
+
+### Swagger and Postman
+
+Swagger UI:
+
+```text
+http://localhost:8081
+```
+
+Postman collection:
+
+```text
+docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json
+```
+
+Set or keep:
+
+```text
+baseUrl = http://localhost:8080
+```
+
+### Run Tests
+
+```bash
+python -m pytest -p no:cacheprovider services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
+```
+
+### Demo Data and Seeds
+
+- Active offers are seeded by `infra/mysql/init/030-svc-catalogue-offres.sql`, including `forfait-5g-20gb`.
+- UC-06 demo invoices are created deterministically by `svc-usage-facturation` when invoices are first requested for a valid customer.
+- UC-03 uses `MockHlrAdapter` by default with `HLR_ENABLED=false`.
+- To use the teacher free5GC simulator for UC-03, start the simulator separately, set `HLR_ENABLED=true` in `.env`, and keep `FREE5GC_WEBUI_URL=http://host.docker.internal:5050`.
+
+### Démo officielle
+
+Run every request through the API Gateway with `baseUrl=http://localhost:8080`:
+
+1. UC-01 register
+2. UC-02 login
+3. UC-02 MFA verify
+4. UC-05 consult offers
+5. UC-05 create order
+6. UC-05 idempotency replay
+7. UC-03 activate line
+8. UC-03 idempotency replay
+9. UC-06 consult invoice, then pay invoice
+10. UC-06 payment idempotency replay
+11. Audit by `TraceId`
+
+### Validation rapide pour le correcteur
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+bash scripts/wait-compose-health.sh 300
+curl -i http://localhost:8080/health
+docker compose ps
+python -m pytest -p no:cacheprovider services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
+```
+
+Then import the Postman collection, keep `baseUrl=http://localhost:8080`, run the official demo flow, and verify logs by TraceId:
+
+```bash
+docker compose logs api-gateway svc-clients-identite svc-commandes-activations svc-lignes-services svc-usage-facturation svc-conformite-audit
+```
+
+### CI/CD et deploiement VM
+
+La workflow GitHub Actions [Phase 1 CI](.github/workflows/phase1-ci.yml) est limitee a 10 minutes et execute la chaine attendue: lint rapide, validation OpenAPI/Postman/Compose, tests unitaires, build Docker, demarrage Compose, tests d'integration, test E2E gateway et artefacts JUnit/logs.
+
+Deploiement VM en une commande depuis la racine du depot:
+
+```bash
+bash scripts/deploy-vm.sh deploy
+```
+
+Rollback simple vers le commit precedent enregistre:
+
+```bash
+bash scripts/deploy-vm.sh rollback
+```
+
+Runbook d'exploitation complet: [docs/runbooks/deploiement-vm.md](docs/runbooks/deploiement-vm.md).
 
 ### Prerequisites
 
@@ -141,10 +307,22 @@ cp .env.example .env
 
 ### Run Locally
 
-Start the first slice:
+Start the full Phase 1 stack:
 
 ```bash
 docker compose up --build
+```
+
+Stop the stack without deleting data:
+
+```bash
+docker compose down
+```
+
+Reset local database/dashboard volumes for a clean demo:
+
+```bash
+docker compose down -v
 ```
 
 Default local URLs:
@@ -161,6 +339,16 @@ Postman:     docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json
 Open Swagger UI in a browser and use **Try it out** to call the API through the gateway. The OpenAPI server URL points to `http://localhost:8080`.
 
 The Postman collection is also gateway-only and grouped by UC/service. Use it for demo evidence of UC-01 registration, UC-02 MFA, UC-05 order creation, UC-03 activation, UC-06 invoice/payment, idempotency replay, line lookup, and audit trace lookup.
+
+Health checks:
+
+```bash
+curl -i http://localhost:8080/health
+bash scripts/wait-compose-health.sh 300
+docker compose ps
+```
+
+All official demo API requests must use the NGINX gateway at `http://localhost:8080`. Direct service calls are reserved only for the direct-vs-gateway comparison evidence.
 
 ### Implemented Endpoint Examples
 
@@ -297,6 +485,8 @@ UC-06 uses a simulated payment gateway adapter and database unique constraints f
 
 Import [docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json](docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json), keep `baseUrl` as `http://localhost:8080`, and run the requests in this order:
 
+Start each official demo run from **UC-01 register**. That request has a pre-request script that automatically generates a fresh `email`, `TraceId`, identity document number, activation/order/payment idempotency keys, port-in MSISDN, and clears stale IDs from previous runs.
+
 1. UC-01 register
 2. UC-02 login
 3. UC-02 MFA verify
@@ -312,37 +502,163 @@ Import [docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json](docs/
 
 ### Evidence Checklist
 
+- Docker Compose screenshot showing gateway, six services, MySQL, Prometheus, Grafana, and Swagger UI running.
+- Swagger/OpenAPI screenshot showing only the retained official UCs: UC-01, UC-02, UC-03, UC-05, UC-06.
+- Postman flow screenshots through `baseUrl=http://localhost:8080`.
 - Swagger screenshot of UC-05 order creation returning `201`.
 - Swagger screenshot of UC-06 payment returning `201`.
 - Swagger or Postman screenshot showing UC-05 order idempotency replay returns the same `orderId`.
 - Swagger or Postman screenshot showing payment idempotency replay returns the same `paymentId`.
+- UC-03 activation screenshot showing `status=ACTIVE`, `msisdn`, `lineId`, and `hlrStatus=PROVISIONED`.
+- free5GC evidence using the GUI or UDM read endpoint, not only WebConsole `GET /api/subscriber` because that API may return `200` for missing subscribers.
 - Database evidence from `usage_facturation.invoices` and `usage_facturation.payments`.
 - Audit evidence for `ORDER_ACCEPTED`, `INVOICE_CONSULTED`, `PAYMENT_REQUESTED`, `PAYMENT_ACCEPTED`, and `INVOICE_PAID`.
 - Docker logs showing the same `TraceId` across gateway and services.
+- Pytest result screenshot showing all service tests passing.
+- Locust HTML report screenshot and Grafana Golden Signals dashboard screenshot.
+- GitHub Actions Phase 1 CI run screenshot.
+- `bash scripts/deploy-vm.sh deploy` screenshot showing one-command deployment and healthy Compose status.
+- `bash scripts/deploy-vm.sh rollback` screenshot or terminal output showing simple rollback.
 
 ### Run Tests
 
-Install the service test dependencies locally, then run:
+Install the service test dependencies locally, then run the official Phase 1 service test suite:
 
 ```bash
-python -m pytest services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests
+python -m pytest -p no:cacheprovider services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
 ```
 
-Include UC-05 and UC-06 tests:
+Latest measured result:
+
+```text
+50 passed
+```
+
+Measure the required coverage on the critical `application` + `domain` layers and write the HTML report. Infrastructure/adapters are intentionally excluded from this unit-coverage target and are validated by adapter, E2E, Docker, and Postman/Newman evidence.
 
 ```bash
-python -m pytest services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
+python -m pytest --cov=services/svc-clients-identite/app/application --cov=services/svc-clients-identite/app/domain --cov=services/svc-catalogue-offres/app/application --cov=services/svc-catalogue-offres/app/domain --cov=services/svc-lignes-services/app/application --cov=services/svc-lignes-services/app/domain --cov=services/svc-commandes-activations/app/application --cov=services/svc-commandes-activations/app/domain --cov=services/svc-usage-facturation/app/application --cov=services/svc-usage-facturation/app/domain --cov=services/svc-conformite-audit/app/application --cov=services/svc-conformite-audit/app/domain --cov-report=term-missing --cov-report=html:docs/evidence/coverage/htmlcov -p no:cacheprovider services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
 ```
+
+Latest measured coverage:
+
+```text
+50 passed
+TOTAL 87%
+HTML report: docs/evidence/coverage/htmlcov/index.html
+```
+
+The test strategy and security/error evidence for LOG430 section 7.1/7.2 are summarized in [docs/architecture/test-strategy-security.md](docs/architecture/test-strategy-security.md).
+
+Run the optional gateway E2E smoke test after Docker Compose is running:
+
+```bash
+python -m pytest -p no:cacheprovider tests/e2e/test_gateway_flow.py
+```
+
+The E2E test is skipped automatically if `http://localhost:8080/health` is unavailable. Full UC-07 fraud detection is out of scope; the tests cover the retained Phase 1 risk controls such as high-risk customer blocking for UC-03 and UC-05.
+
+Run automated integration tests by adapter boundary after Docker Compose is running:
+
+```bash
+python -m pytest -p no:cacheprovider tests/integration
+```
+
+Latest measured result:
+
+```text
+7 passed, 1 skipped
+```
+
+These integration tests cover persistence boundaries for customers/MFA, catalogue offers, lines/MSISDN, orders/activations, invoices/payments, append-only audit, and the simulated payment gateway adapter. The free5GC live adapter test is skipped by default; run it with `FREE5GC_LIVE_TEST=1` when the simulator is available. Postman remains E2E evidence, not integration-test evidence.
 
 ### Run Load Tests
 
-After starting the stack, install Locust locally and run the first-slice load scenario:
+After starting the stack, run the official Phase 1 Golden Signals load scenario. Following the teacher's clarification for section 5.2, this scenario targets the implemented paths from the listed load-test UCs: UC-03 activation and UC-05 offer/order, with UC-02 login/MFA used for authenticated setup. UC-04 and UC-08 are out of scope in this project, and UC-06 remains a functional/payment test path rather than part of the official Locust Golden Signals scenario.
+
+For load tests, Docker Compose uses `COMMAND_AUDIT_LEVEL=summary` by default. This keeps append-only audit evidence for accepted/rejected orders and completed/failed activations while reducing verbose intermediate audit events during high-concurrency campaigns. Set `COMMAND_AUDIT_LEVEL=detailed` for a verbose audit demo.
+
+Recommended Docker Compose option, no local Locust install required:
 
 ```bash
-locust -f tests/load/locustfile.py --host http://localhost:8080
+docker compose --profile load-test up locust
 ```
 
-Use the Locust report and Grafana dashboards as Phase 1 NFR evidence for latency, traffic, errors, and saturation. Later slices can add out-of-scope usage consultation if the report scope changes.
+Then open Locust at:
+
+```text
+http://localhost:8089
+```
+
+If Locust is installed locally, this is equivalent:
+
+```bash
+locust -f tests/load/locustfile.py --host=http://localhost:8080
+```
+
+Headless Docker example with an HTML report:
+
+```bash
+docker compose --profile load-test run --rm locust -f /mnt/locust/locustfile.py --host=http://api-gateway --headless -u 50 -r 5 -t 2m --html /mnt/evidence/locust-phase1-report.html
+```
+
+Local headless example with an HTML report:
+
+```bash
+locust -f tests/load/locustfile.py --host=http://localhost:8080 --headless -u 50 -r 5 -t 2m --html docs/evidence/load/locust-phase1-report.html
+```
+
+Use the Locust report and Grafana dashboards as Phase 1 NFR evidence for latency P95/P99, traffic/RPS, errors 4xx/5xx, and saturation. The current dashboard measures saturation at the Python process level with `process_cpu_seconds_total` and `process_resident_memory_bytes`; container/host-level saturation with cAdvisor or node-exporter is not included in the default stack. If the local machine does not reach the course target such as 600 ops/s, document the measured environment, user count, RPS, P95 latency, error rate, bottleneck, and limitation honestly.
+
+Latest recorded local Locust evidence before the final UC-06 removal from the official Golden Signals scenario:
+
+| Campaign | Requests | Failures | Average RPS | Median | P95 | P99 |
+|---|---:|---:|---:|---:|---:|---:|
+| 20 users, ramp 2/s, 60s | 7800 | 0% | 131.7 | 7 ms | 160 ms | 210 ms |
+| 50 users, ramp 5/s, 120s | 29804 | 0% | 249.2 | 12 ms | 450 ms | 740 ms |
+
+For the 50-user run, the slower write endpoints remain UC-03 activation and UC-05 order creation. Their P95 values are approximately 840 ms and 810 ms respectively, while read-heavy endpoints such as customer lookup and offer consultation remain much faster. This validates stability under the tested load and meets the global P95 target in this local run, but it does not prove the `>= 600 ops/s` throughput target or formal `95%` availability under a kill-instance test.
+
+For final submission screenshots, rerun Locust with the current `tests/load/locustfile.py`. The official request table should no longer contain UC-06 payment/invoice rows or the old protected customer lookup helper; it should contain UC-02 setup rows, UC-03 activation/replay, and UC-05 offer/order/replay.
+
+### Load Balancing, Cache, and Direct-vs-Gateway Evidence
+
+NGINX is the API Gateway and load balancer. The upstreams use Docker Compose DNS with `least_conn`, so replicated service containers can be exercised without changing API routes. The default compose file runs one container per service for reproducibility. For load-balancing evidence, run the same Locust campaign with N=1, 2, 3, and 4 replicas of the high-traffic services:
+
+```powershell
+# N = 1 baseline
+docker compose up -d --scale svc-catalogue-offres=1 --scale svc-commandes-activations=1 --scale svc-lignes-services=1
+docker compose restart api-gateway
+docker compose --profile load-test run --no-deps --rm locust -f /mnt/locust/locustfile.py --host=http://api-gateway --headless -u 50 -r 5 -t 2m --html /mnt/evidence/locust-n1.html
+
+# N = 2
+docker compose up -d --scale svc-catalogue-offres=2 --scale svc-commandes-activations=2 --scale svc-lignes-services=2
+docker compose restart api-gateway
+docker compose --profile load-test run --no-deps --rm locust -f /mnt/locust/locustfile.py --host=http://api-gateway --headless -u 50 -r 5 -t 2m --html /mnt/evidence/locust-n2.html
+
+# Repeat with N = 3 and N = 4 if the local machine has enough CPU/RAM.
+```
+
+For the fault-tolerance evidence, run a load test with at least N=2, stop one replicated container during the test, and capture the Locust failure rate plus Docker logs. The reported availability for this demonstration is `successful requests / total requests`. Do not add distributed locks, Kafka, saga orchestration, event sourcing, or distributed database resilience for Phase 1.
+
+Redis caching is implemented for the catalogue read endpoints:
+
+| Endpoint | Cache key | TTL | Invalidation |
+|---|---|---:|---|
+| `GET /v1/offers` | `catalogue:offers:active` | `OFFER_CACHE_TTL_SECONDS`, default 60s | TTL-based in Phase 1 because catalogue data is seeded/read-only |
+| `GET /v1/offers/{offerId}` | `catalogue:offer:{offerId}` | `OFFER_CACHE_TTL_SECONDS`, default 60s | TTL-based; future catalogue admin writes must delete affected keys |
+
+The response header `X-Cache` shows `MISS` on the first read and `HIT` on the cached read. UC-04 usage caching remains out of scope.
+
+Quick cache evidence:
+
+```powershell
+$headers = @{ Authorization = "Bearer $env:ACCESS_TOKEN"; TraceId = "cache-demo" }
+Invoke-WebRequest -Uri "http://localhost:8080/v1/offers" -Headers $headers | Select-Object -ExpandProperty Headers
+Invoke-WebRequest -Uri "http://localhost:8080/v1/offers" -Headers $headers | Select-Object -ExpandProperty Headers
+```
+
+For direct-vs-gateway comparison, measure the same safe read endpoint once through the gateway and once directly inside the Docker network, then report the trade-off: gateway adds small routing/auth overhead but centralizes authentication, TraceId propagation, routing, and demo control.
 
 ## Development Workflow
 
@@ -394,19 +710,14 @@ Testing should cover both service-level behavior and architecture-sensitive flow
 ### Running Tests
 
 ```bash
-# Placeholder commands
-npm test
-# or
-mvn test
-# or
-gradle test
+python -m pytest -p no:cacheprovider services/svc-clients-identite/tests services/svc-conformite-audit/tests services/svc-catalogue-offres/tests services/svc-lignes-services/tests services/svc-commandes-activations/tests services/svc-usage-facturation/tests
 ```
 
 Run integration tests when infrastructure is available:
 
 ```bash
 docker compose up -d
-# run integration test command here
+python -m pytest -p no:cacheprovider tests/integration
 ```
 
 ### Minimum Expectations

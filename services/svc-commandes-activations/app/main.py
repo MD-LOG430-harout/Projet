@@ -45,9 +45,14 @@ def create_app(
     app.config["activation_repository"] = repository
     app.config["order_repository"] = order_repository or repository
     app.config["customer_client"] = customer_client or CustomerClient(os.getenv("CUSTOMER_SERVICE_URL", "http://svc-clients-identite:5000"))
-    app.config["offer_client"] = offer_client or OfferClient(os.getenv("CATALOGUE_SERVICE_URL", "http://svc-catalogue-offres:5000"))
+    offer_cache_ttl = int(os.getenv("OFFER_CACHE_TTL_SECONDS", "60"))
+    app.config["offer_client"] = offer_client or OfferClient(
+        os.getenv("CATALOGUE_SERVICE_URL", "http://svc-catalogue-offres:5000"),
+        ttl_seconds=offer_cache_ttl,
+    )
     app.config["line_client"] = line_client or LineClient(os.getenv("LINES_SERVICE_URL", "http://svc-lignes-services:5000"))
     app.config["audit_client"] = audit_client or AuditClient(os.getenv("AUDIT_SERVICE_URL", "http://svc-conformite-audit:5000"))
+    app.config["command_audit_level"] = os.getenv("COMMAND_AUDIT_LEVEL", "detailed").lower()
     app.register_blueprint(bp)
     return app
 

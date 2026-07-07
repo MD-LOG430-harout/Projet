@@ -12,11 +12,20 @@ IMPLEMENTED_ORDER_TYPES = {"NEW_PLAN"}
 
 
 class CreateOrder:
-    def __init__(self, order_repository, customer_client, offer_client, audit_client=None):
+    SUMMARY_AUDIT_EVENTS = {
+        "ORDER_ACCEPTED",
+        "ORDER_REJECTED",
+        "ORDER_BLOCKED_RISK",
+        "ORDER_ELIGIBILITY_FAILED",
+        "ORDER_COMPATIBILITY_FAILED",
+    }
+
+    def __init__(self, order_repository, customer_client, offer_client, audit_client=None, audit_level="detailed"):
         self.order_repository = order_repository
         self.customer_client = customer_client
         self.offer_client = offer_client
         self.audit_client = audit_client
+        self.audit_level = audit_level
 
     def execute(self, payload, idempotency_key, trace_id=None):
         self._validate_payload(payload)
@@ -25,7 +34,6 @@ class CreateOrder:
         if existing:
             if existing["request_hash"] != request_hash:
                 raise ApiError(409, "idempotency_key_conflict", "Idempotency-Key was already used with a different payload")
-            self._audit("ORDER_REPLAYED", existing["order_id"], existing["customer_id"], "SUCCESS", trace_id)
             return self._response_from_existing(existing), int(existing["http_status"]), True
 
         order_id = str(uuid.uuid4())
@@ -156,6 +164,8 @@ class CreateOrder:
 
     def _audit(self, event_type, order_id, customer_id, result, trace_id, metadata=None):
         if not self.audit_client:
+            return
+        if self.audit_level == "summary" and event_type not in self.SUMMARY_AUDIT_EVENTS:
             return
         self.audit_client.record(
             {

@@ -15,6 +15,8 @@ CREATE TABLE IF NOT EXISTS activations (
   updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   UNIQUE KEY uq_activations_idempotency_key (idempotency_key),
   KEY idx_activations_customer (customer_id),
+  KEY idx_activations_offer (offer_id),
+  KEY idx_activations_line (line_id),
   KEY idx_activations_status (status)
 );
 
@@ -37,5 +39,6 @@ CREATE TABLE IF NOT EXISTS orders (
   UNIQUE KEY uq_orders_idempotency_key (idempotency_key),
   KEY idx_orders_customer (customer_id),
   KEY idx_orders_offer (offer_id),
+  KEY idx_orders_customer_status (customer_id, status),
   KEY idx_orders_status (status)
 );

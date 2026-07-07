@@ -25,6 +25,7 @@ class MysqlUsageBillingRepository:
                       created_at DATETIME NOT NULL,
                       paid_at DATETIME NULL,
                       KEY idx_invoices_customer (customer_id),
+                      KEY idx_invoices_customer_status (customer_id, status),
                       KEY idx_invoices_status (status)
                     )
                     """
@@ -52,8 +53,23 @@ class MysqlUsageBillingRepository:
                     )
                     """
                 )
+                self._ensure_index(cursor, "invoices", "idx_invoices_customer_status", "customer_id, status")
             conn.commit()
         self._schema_checked = True
+
+    def _ensure_index(self, cursor, table_name, index_name, columns):
+        cursor.execute(
+            """
+            SELECT COUNT(*) AS index_count
+            FROM INFORMATION_SCHEMA.STATISTICS
+            WHERE TABLE_SCHEMA = DATABASE()
+              AND TABLE_NAME = %s
+              AND INDEX_NAME = %s
+            """,
+            (table_name, index_name),
+        )
+        if cursor.fetchone()["index_count"] == 0:
+            cursor.execute(f"ALTER TABLE {table_name} ADD INDEX {index_name} ({columns})")
 
     def list_invoices_by_customer(self, customer_id):
         self.ensure_schema()

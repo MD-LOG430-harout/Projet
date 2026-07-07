@@ -21,6 +21,7 @@ def create_activation():
         current_app.config["offer_client"],
         current_app.config["line_client"],
         current_app.config.get("audit_client"),
+        audit_level=current_app.config.get("command_audit_level", "detailed"),
     )
     body, status_code, replayed = use_case.execute(request.get_json(silent=True) or {}, idempotency_key, trace_id=g.trace_id)
     response = jsonify(body)
@@ -40,6 +41,7 @@ def create_order():
         current_app.config["customer_client"],
         current_app.config["offer_client"],
         current_app.config.get("audit_client"),
+        audit_level=current_app.config.get("command_audit_level", "detailed"),
     )
     body, status_code, replayed = use_case.execute(request.get_json(silent=True) or {}, idempotency_key, trace_id=g.trace_id)
     response = jsonify(body)

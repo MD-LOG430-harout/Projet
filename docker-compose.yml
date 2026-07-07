@@ -2,9 +2,9 @@ services:
   mysql:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev}
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
     ports:
       - "3306:3306"
     volumes:
@@ -19,9 +19,9 @@ services:
   mysql-bootstrap:
     image: mysql:8.4
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev}
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
     depends_on:
       mysql:
         condition: service_healthy
@@ -29,20 +29,30 @@ services:
       - sh
       - -c
       - >
-        mysql -hmysql -uroot -p${MYSQL_ROOT_PASSWORD:-cantelcox_root_dev} -e "
+        mysql -hmysql -uroot -p"$${MYSQL_ROOT_PASSWORD}" -e "
         CREATE DATABASE IF NOT EXISTS clients_identite CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS conformite_audit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS catalogue_offres CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS lignes_services CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS commandes_activations CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
         CREATE DATABASE IF NOT EXISTS usage_facturation CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-        GRANT ALL PRIVILEGES ON clients_identite.* TO '${MYSQL_USER:-cantelcox}'@'%';
-        GRANT ALL PRIVILEGES ON conformite_audit.* TO '${MYSQL_USER:-cantelcox}'@'%';
-        GRANT ALL PRIVILEGES ON catalogue_offres.* TO '${MYSQL_USER:-cantelcox}'@'%';
-        GRANT ALL PRIVILEGES ON lignes_services.* TO '${MYSQL_USER:-cantelcox}'@'%';
-        GRANT ALL PRIVILEGES ON commandes_activations.* TO '${MYSQL_USER:-cantelcox}'@'%';
-        GRANT ALL PRIVILEGES ON usage_facturation.* TO '${MYSQL_USER:-cantelcox}'@'%';
+        GRANT ALL PRIVILEGES ON clients_identite.* TO '$${MYSQL_USER}'@'%';
+        GRANT ALL PRIVILEGES ON conformite_audit.* TO '$${MYSQL_USER}'@'%';
+        GRANT ALL PRIVILEGES ON catalogue_offres.* TO '$${MYSQL_USER}'@'%';
+        GRANT ALL PRIVILEGES ON lignes_services.* TO '$${MYSQL_USER}'@'%';
+        GRANT ALL PRIVILEGES ON commandes_activations.* TO '$${MYSQL_USER}'@'%';
+        GRANT ALL PRIVILEGES ON usage_facturation.* TO '$${MYSQL_USER}'@'%';
         FLUSH PRIVILEGES;"
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   svc-conformite-audit:
     build:
@@ -50,9 +60,12 @@ services:
       dockerfile: services/svc-conformite-audit/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: conformite_audit
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
     depends_on:
       mysql-bootstrap:
         condition: service_completed_successfully
@@ -68,10 +81,13 @@ services:
       dockerfile: services/svc-clients-identite/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: clients_identite
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
     depends_on:
       mysql-bootstrap:
         condition: service_completed_successfully
@@ -89,12 +105,19 @@ services:
       dockerfile: services/svc-catalogue-offres/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: catalogue_offres
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
+      REDIS_URL: redis://redis:6379/0
+      OFFER_CACHE_TTL_SECONDS: ${OFFER_CACHE_TTL_SECONDS:-60}
     depends_on:
       mysql-bootstrap:
         condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=2)"]
       interval: 10s
@@ -107,15 +130,18 @@ services:
       dockerfile: services/svc-lignes-services/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: lignes_services
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
       HLR_ENABLED: ${HLR_ENABLED:-false}
       HLR_FORCE_FAILURE: ${HLR_FORCE_FAILURE:-false}
-      FREE5GC_WEBUI_URL: ${FREE5GC_WEBUI_URL:-http://host.docker.internal:5050}
-      FREE5GC_WEBUI_USERNAME: ${FREE5GC_WEBUI_USERNAME:-admin}
-      FREE5GC_WEBUI_PASSWORD: ${FREE5GC_WEBUI_PASSWORD:-free5gc}
-      FREE5GC_PLMN_ID: ${FREE5GC_PLMN_ID:-20893}
+      FREE5GC_WEBUI_URL: ${FREE5GC_WEBUI_URL:?Set FREE5GC_WEBUI_URL in .env}
+      FREE5GC_WEBUI_USERNAME: ${FREE5GC_WEBUI_USERNAME:?Set FREE5GC_WEBUI_USERNAME in .env}
+      FREE5GC_WEBUI_PASSWORD: ${FREE5GC_WEBUI_PASSWORD:?Set FREE5GC_WEBUI_PASSWORD in .env}
+      FREE5GC_PLMN_ID: ${FREE5GC_PLMN_ID:?Set FREE5GC_PLMN_ID in .env}
     depends_on:
       mysql-bootstrap:
         condition: service_completed_successfully
@@ -131,13 +157,18 @@ services:
       dockerfile: services/svc-commandes-activations/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: commandes_activations
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
       CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
       CATALOGUE_SERVICE_URL: http://svc-catalogue-offres:5000
+      OFFER_CACHE_TTL_SECONDS: ${OFFER_CACHE_TTL_SECONDS:-60}
       LINES_SERVICE_URL: http://svc-lignes-services:5000
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
+      COMMAND_AUDIT_LEVEL: ${COMMAND_AUDIT_LEVEL:-summary}
     depends_on:
       mysql-bootstrap:
         condition: service_completed_successfully
@@ -161,9 +192,12 @@ services:
       dockerfile: services/svc-usage-facturation/Dockerfile
     environment:
       MYSQL_HOST: mysql
-      MYSQL_USER: ${MYSQL_USER:-cantelcox}
-      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-cantelcox_dev}
+      MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: usage_facturation
+      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
+      GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
       CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
       PAYMENT_GATEWAY_FORCE_FAILURE: ${PAYMENT_GATEWAY_FORCE_FAILURE:-false}
@@ -199,6 +233,11 @@ services:
         condition: service_healthy
       svc-usage-facturation:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   swagger-ui:
     image: swaggerapi/swagger-ui:v5.17.14
@@ -209,7 +248,8 @@ services:
     volumes:
       - ./docs/api/openapi.yaml:/openapi.yaml:ro
     depends_on:
-      - api-gateway
+      api-gateway:
+        condition: service_healthy
 
   prometheus:
     image: prom/prometheus:v2.53.0
@@ -230,14 +270,28 @@ services:
     ports:
       - "${GRAFANA_PORT:-3000}:3000"
     environment:
-      GF_SECURITY_ADMIN_USER: admin
-      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:?Set GRAFANA_ADMIN_USER in .env}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?Set GRAFANA_ADMIN_PASSWORD in .env}
     volumes:
       - grafana-data:/var/lib/grafana
       - ./infra/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./infra/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
+
+  locust:
+    image: locustio/locust:2.31.5
+    profiles:
+      - load-test
+    ports:
+      - "${LOCUST_PORT:-8089}:8089"
+    volumes:
+      - ./tests/load:/mnt/locust:ro
+      - ./docs/evidence/load:/mnt/evidence
+    command: ["-f", "/mnt/locust/locustfile.py", "--host=http://api-gateway"]
+    depends_on:
+      api-gateway:
+        condition: service_healthy
 
 volumes:
   mysql-data:
