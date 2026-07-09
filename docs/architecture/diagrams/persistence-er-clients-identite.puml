@@ -1,0 +1,54 @@
+@startuml
+title clients_identite - Logical ER
+
+hide circle
+skinparam linetype ortho
+
+entity customers {
+  * customer_id : CHAR(36) <<PK>>
+  --
+  email : VARCHAR(255) <<UQ>>
+  display_name : VARCHAR(160)
+  legal_name : VARCHAR(180)
+  address_line1 : VARCHAR(255)
+  city : VARCHAR(120)
+  province : CHAR(2)
+  postal_code : VARCHAR(12)
+  identity_document_type : VARCHAR(40)
+  identity_document_hash : VARCHAR(255)
+  customer_type : VARCHAR(40)
+  status : VARCHAR(40)
+  identity_status : VARCHAR(40)
+  risk_level : VARCHAR(40)
+  password_hash : VARCHAR(255)
+  failed_login_attempts : INT
+  locked_until : DATETIME
+  last_login_risk : VARCHAR(40)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+entity mfa_challenges {
+  * challenge_id : CHAR(36) <<PK>>
+  --
+  customer_id : CHAR(36) <<FK>>
+  otp_hash : VARCHAR(255)
+  status : VARCHAR(40)
+  expires_at : DATETIME
+  verified_at : DATETIME
+  created_at : TIMESTAMP
+}
+
+customers ||--o{ mfa_challenges : fk_mfa_customer
+
+note right of customers
+  Constraints:
+  - uq_customers_email(email)
+  - idx_customers_status(status)
+end note
+
+note right of mfa_challenges
+  Constraints:
+  - idx_mfa_customer_status(customer_id, status)
+end note
+@enduml

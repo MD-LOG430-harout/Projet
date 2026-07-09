@@ -13,10 +13,9 @@ The added simulator material contains a reduced free5GC stack with WebConsole pr
 Use the existing free5GC simulator as the external network adapter target for UC-03 where available. `svc-lignes-services` owns the adapter boundary:
 
 - `Free5gcHlrAdapter` calls WebConsole for subscriber provisioning.
-- `Free5gcUdmAdapter` optionally verifies subscriber visibility through UDM.
 - `svc-commandes-activations` orchestrates activation but does not call free5GC directly.
 
-The adapter is enabled by configuration. A local no-op adapter may exist only for degraded demos when the simulator is unavailable.
+The adapter is enabled by configuration. A local mock adapter is used for reproducible demos when the simulator is unavailable. UDM subscriber visibility checks remain a documented simulator capability, but they are not part of the official Phase 1 implementation.
 
 ## Consequences
 

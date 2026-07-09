@@ -122,6 +122,46 @@ The free5GC simulator integration notes are in [docs/runbooks/free5gc-simulator.
 
 By default, Docker Compose runs UC-03 with `HLR_ENABLED=false`, which uses `MockHlrAdapter` through the same outbound port as the real network adapter. To call the provided free5GC WebConsole instead, extract/start the simulator, set `HLR_ENABLED=true`, and configure `FREE5GC_WEBUI_URL`.
 
+## Pinned Architecture Diagrams
+
+The official PlantUML diagrams for the Phase 1 report are grouped under [docs/architecture/diagrams](docs/architecture/diagrams). They are pinned here so the architecture views, sequence flows, persistence models, and deployment topology are easy to find during correction.
+
+### Context and DDD
+
+- [Business context - CanTelcoX](docs/architecture/diagrams/context-business-cantelcox.puml)
+- [System context - CanTelcoX](docs/architecture/diagrams/context-system-cantelcox.puml)
+- [DDD context map - CanTelcoX](docs/architecture/diagrams/context-map-ddd-cantelcox.puml)
+
+### Building Blocks
+
+- [Level 1 whitebox - service decomposition](docs/architecture/diagrams/building-blocks-level1-cantelcox.puml)
+- [Level 2 hexagonal structure - svc-commandes-activations](docs/architecture/diagrams/building-blocks-level2-commandes-activations.puml)
+
+### Runtime Sequences
+
+- [E2E Phase 1 gateway flow](docs/architecture/diagrams/sequence-e2e-phase1-gateway-flow.puml)
+- [UC-01 registration](docs/architecture/diagrams/sequence-uc01-registration.puml)
+- [UC-02 authentication and MFA](docs/architecture/diagrams/sequence-uc02-auth-mfa.puml)
+- [UC-03 activation](docs/architecture/diagrams/sequence-uc03-activation.puml)
+- [UC-05 order creation](docs/architecture/diagrams/sequence-uc05-order.puml)
+- [UC-06 invoice payment](docs/architecture/diagrams/sequence-uc06-payment.puml)
+- [Order idempotency replay](docs/architecture/diagrams/sequence-idempotency-order.puml)
+- [Payment exactly-once safeguard](docs/architecture/diagrams/sequence-exactly-once-payment.puml)
+
+### Deployment
+
+- [Docker Compose deployment topology](docs/architecture/diagrams/deployment-docker-compose-cantelcox.puml)
+
+### Persistence / Annexe B
+
+- [Global persistence view](docs/architecture/diagrams/persistence-er-global.puml)
+- [Clients & Identite persistence](docs/architecture/diagrams/persistence-er-clients-identite.puml)
+- [Catalogue & Offres persistence](docs/architecture/diagrams/persistence-er-catalogue-offres.puml)
+- [Commandes & Activations persistence](docs/architecture/diagrams/persistence-er-commandes-activations.puml)
+- [Lignes & Services persistence](docs/architecture/diagrams/persistence-er-lignes-services.puml)
+- [Usage / Facturation persistence](docs/architecture/diagrams/persistence-er-usage-facturation.puml)
+- [Conformite & Audit persistence](docs/architecture/diagrams/persistence-er-conformite-audit.puml)
+
 ## Setup Instructions
 
 ## Lancement rapide

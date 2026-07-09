@@ -1,0 +1,37 @@
+@startuml
+title lignes_services - Logical ER
+
+hide circle
+skinparam linetype ortho
+
+entity service_lines {
+  * line_id : CHAR(36) <<PK>>
+  --
+  customer_id : CHAR(36) <<logical ref>>
+  offer_id : VARCHAR(80) <<logical ref>>
+  msisdn : VARCHAR(32) <<UQ>>
+  sim_type : VARCHAR(10)
+  sim_identifier : VARCHAR(80) <<UQ>>
+  imsi : VARCHAR(32) <<UQ>>
+  supi : VARCHAR(48)
+  status : VARCHAR(40)
+  hlr_status : VARCHAR(40)
+  number_mode : VARCHAR(20)
+  portability_status : VARCHAR(40)
+  failure_reason : VARCHAR(255)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+note right of service_lines
+  Constraints:
+  - uq_lines_msisdn(msisdn)
+  - uq_lines_sim_identifier(sim_identifier)
+  - uq_lines_imsi(imsi)
+  - idx_lines_customer(customer_id)
+  - idx_lines_status(status)
+
+  customer_id and offer_id are logical
+  cross-service references.
+end note
+@enduml

@@ -1,0 +1,97 @@
+@startuml
+title Structure interne hexagonale - svc-commandes-activations
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+skinparam rectangle {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam database {
+  BorderColor #64748B
+  BackgroundColor #B2DFDB
+}
+skinparam interface {
+  BorderColor #64748B
+  BackgroundColor white
+}
+skinparam ArrowColor #334155
+
+actor "API Gateway /\nclient REST" as Client
+
+package "Adapters entrants" as Incoming #EAF2FF {
+  rectangle "routes.py\nPOST /v1/orders\nPOST /v1/activations" as Routes
+}
+
+package "Ports d'entree\n(operations applicatives)" as IncomingPorts #FFFFFF {
+  interface "OrderCommandPort\ncreer commande" as OrderCommandPort
+  interface "ActivationCommandPort\ncreer activation" as ActivationCommandPort
+}
+
+hexagon "svc-commandes-activations\n\nCOEUR HEXAGONAL\n\nApplication\n- CreateOrder\n- CreateActivation\n- validation payload\n- idempotence par hash\n\nDomaine pur\n- Order\n- Activation\n- statuts commande / activation\n- idempotency_key\n- request_hash\n\nRegles metier\n- client actif\n- identite verifiee\n- risque non HIGH\n- offre active\n- NEW_PLAN implemente Phase 1" as Core #E8F5E9
+
+package "Ports sortants\n(dependances requises)" as Ports #FFFFFF {
+  interface "customer_client" as CustomerPort
+  interface "offer_client" as OfferPort
+  interface "line_client" as LinePort
+  interface "audit_client" as AuditPort
+  interface "activation_repository\norder_repository" as RepositoryPort
+}
+
+package "Adapters sortants" as Outgoing #F8FAFC {
+  rectangle "CustomerClient" as CustomerAdapter
+  rectangle "OfferClient\ncache TTL offres" as OfferAdapter
+  rectangle "LineClient" as LineAdapter
+  rectangle "AuditClient" as AuditAdapter
+  rectangle "MysqlActivationRepository\norders + activations" as MySQLRepo
+}
+
+package "Services internes CanTelcoX" as InternalServices #F8FAFC {
+  rectangle "svc-clients-identite" as SvcIdentity
+  rectangle "svc-catalogue-offres" as SvcCatalog
+  rectangle "svc-lignes-services" as SvcLines
+  rectangle "svc-conformite-audit" as SvcAudit
+}
+
+database "DB Commandes\ncommandes_activations" as DBCommandes
+
+Client --> Routes : HTTPS/JSON\n/v1
+Routes --> OrderCommandPort : creer commande
+Routes --> ActivationCommandPort : creer activation
+OrderCommandPort --> Core : CreateOrder
+ActivationCommandPort --> Core : CreateActivation
+
+Core --> CustomerPort : verifier client,\nidentite, risque
+Core --> OfferPort : valider offre,\nprix, eligibilite
+Core --> LinePort : demander activation\npour UC-03
+Core --> AuditPort : journaliser evenements
+Core --> RepositoryPort : persister commande,\nactivation, idempotence
+
+CustomerPort --> CustomerAdapter
+OfferPort --> OfferAdapter
+LinePort --> LineAdapter
+AuditPort --> AuditAdapter
+RepositoryPort --> MySQLRepo
+
+CustomerAdapter --> SvcIdentity : REST/JSON\n/v1/customers/{id}
+OfferAdapter --> SvcCatalog : REST/JSON\n/v1/offers/{id}
+LineAdapter --> SvcLines : REST/JSON\n/v1/lines/activate
+AuditAdapter --> SvcAudit : REST/JSON\n/v1/audit-events
+MySQLRepo --> DBCommandes : SQL
+
+note bottom of Core
+Le coeur ne depend pas directement de Flask,
+MySQL, requests ou des services voisins.
+Dans le code Phase 1, les ports sont materialises
+de facon pragmatique par les use cases et les
+dependances injectees, meme si le diagramme les
+nomme explicitement pour clarifier l'architecture.
+end note
+
+@enduml

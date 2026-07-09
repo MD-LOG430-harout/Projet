@@ -1,0 +1,28 @@
+@startuml
+title catalogue_offres - Logical ER
+
+hide circle
+skinparam linetype ortho
+
+entity offers {
+  * offer_id : VARCHAR(80) <<PK>>
+  --
+  name : VARCHAR(160)
+  monthly_price : DECIMAL(10,2)
+  data_gb : INT
+  status : VARCHAR(40)
+  created_at : TIMESTAMP
+  updated_at : TIMESTAMP
+}
+
+note right of offers
+  Indexes:
+  - idx_offers_status(status)
+
+  Seeded offers:
+  - forfait-5g-20gb
+  - forfait-5g-50gb
+  - forfait-sme-100gb
+  - forfait-retired-10gb
+end note
+@enduml

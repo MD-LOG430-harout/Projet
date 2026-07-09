@@ -1,0 +1,81 @@
+@startuml
+title Diagramme de contexte metier - CanTelcoX Phase 1
+
+left to right direction
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #334155
+}
+skinparam actor {
+  BorderColor #334155
+}
+
+actor "Abonne particulier\n/ representant PME" as Subscriber
+actor "Agent back-office\nCanTelcoX" as Agent
+actor "Equipe exploitation\n/ DevOps-SRE" as Ops
+actor "Equipe securite\n/ conformite" as Security
+actor "Regulateur /\nauditeur" as Regulator
+
+rectangle "CanTelcoX\nPlateforme BSS Phase 1" as BSS {
+  rectangle "API Gateway\nNGINX" as Gateway
+
+  rectangle "Clients & Identite\nUC-01, UC-02" as Customers
+  rectangle "Catalogue & Offres\nUC-05 consultation" as Catalog
+  rectangle "Commandes & Activations\nUC-03, UC-05" as Orders
+  rectangle "Lignes & Services\nUC-03" as Lines
+  rectangle "Usage / Facturation\nUC-04 lecture, UC-06" as Billing
+  rectangle "Conformite & Audit\njournal append-only" as Audit
+  rectangle "Observabilite\nPrometheus / Grafana" as Observability
+
+  Gateway --> Customers
+  Gateway --> Catalog
+  Gateway --> Orders
+  Gateway --> Lines
+  Gateway --> Billing
+  Customers --> Audit
+  Orders --> Audit
+  Billing --> Audit
+  Gateway --> Observability
+}
+
+rectangle "HLR / HSS / UDM\nfree5GC ou mock" as Hlr <<external>>
+rectangle "Passerelle de paiement\nsimulee" as PaymentGateway <<external>>
+rectangle "OTP / MFA\nsimule" as Mfa <<external>>
+rectangle "Hub de portabilite\nsimule Phase 1" as Portability <<external>>
+rectangle "Mediation d'usage\nCDR / donnees demo" as Mediation <<external>>
+rectangle "KYC / scoring\nsimule Phase 1" as Kyc <<external>>
+
+Subscriber --> Gateway : HTTPS/JSON\ninscription, MFA,\noffres, commandes,\nactivation, factures,\npaiement
+Agent --> Gateway : HTTPS/JSON\nsupport client,\nactivation, consultation
+Ops --> Gateway : healthchecks,\nstatut operationnel
+Ops --> Observability : metriques,\ndashboards, alertes
+Security --> Audit : consultation traces,\ncontroles, enquete
+Regulator --> Audit : rapports,\npreuves d'audit
+
+Customers --> Mfa : generation / verification\nOTP de demonstration
+Customers --> Kyc : verification identite\net risque simules
+Orders --> Lines : demande activation
+Lines --> Hlr : provisioning ligne\nSIM/eSIM, IMSI/SUPI
+Lines --> Portability : port-in simule\nMSISDN fourni
+Billing --> PaymentGateway : paiement facture\nSIMULATED_CARD
+Billing --> Mediation : lecture usage /\nfactures demo
+
+note right of Portability
+Phase 1: portabilite simplifiee.
+Pas de hub externe complet.
+end note
+
+note right of Kyc
+Phase 1: verification et risque
+principalement simules.
+end note
+
+note bottom of BSS
+Frontiere systeme: CanTelcoX possede ses services, schemas MySQL,
+cache Redis, API Gateway, observabilite et audit append-only.
+Les systemes externes sont simules pour rendre la demo reproductible.
+end note
+
+@enduml

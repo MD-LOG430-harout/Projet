@@ -1,0 +1,82 @@
+@startuml
+title Carte des contextes DDD - CanTelcoX Phase 1
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam ArrowColor #334155
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+
+rectangle "Clients & Identite\nsvc-clients-identite" as CI #DBEAFE
+rectangle "Catalogue & Offres\nsvc-catalogue-offres" as CO #DBEAFE
+rectangle "Commandes & Activations\nsvc-commandes-activations" as CA #DBEAFE
+rectangle "Lignes & Services\nsvc-lignes-services" as LS #DBEAFE
+rectangle "Usage / Rating /\nFacturation\nsvc-usage-facturation" as UF #DBEAFE
+rectangle "Conformite & Audit\nsvc-conformite-audit" as AUD #FEF3C7
+
+rectangle "KYC / scoring\nsimule Phase 1" as KYC
+rectangle "OTP / MFA\nsimule Phase 1" as MFA
+rectangle "Hub portabilite\nMSISDN simule" as PORT
+rectangle "HLR / HSS / UDM\nfree5GC ou mock" as HLR
+rectangle "Paiement\nsimule" as PAY
+rectangle "CDR / Mediation\nsimules" as CDR
+
+note right of AUD
+Conformite & Audit recoit les
+evenements critiques dans un
+journal append-only.
+end note
+
+' Positioning helpers
+CI -[hidden]down-> CA
+CO -[hidden]up-> CA
+CA -[hidden]right-> LS
+LS -[hidden]right-> UF
+UF -[hidden]down-> AUD
+
+KYC -[hidden]down-> MFA
+MFA -[hidden]down-> CI
+PAY -[hidden]down-> CDR
+CDR -[hidden]left-> UF
+PORT -[hidden]down-> HLR
+HLR -[hidden]left-> LS
+
+' Clients & Identite
+CI --> KYC : ACL\nverification identite
+CI --> MFA : ACL\nOTP / MFA
+CI --> CA : client, identite,\nscore risque
+CI --> AUD : evenements identite\net MFA
+
+' Catalogue & Offres
+CO --> CA : offre, prix,\neligibilite
+CO --> AUD : validation offre\nou version catalogue
+
+' Commandes & Activations
+CA --> LS : demande\nactivation
+CA --> UF : commande,\nchangement forfait
+CA --> AUD : evenements commande\net activation
+
+' Lignes & Services
+LS --> CA : ligne active,\nMSISDN, forfait
+LS --> PORT : ACL\nportabilite
+LS --> HLR : ACL\nactivation reseau
+LS --> AUD : evenements ligne
+
+' Usage / Rating / Facturation
+UF --> PAY : ACL\npaiement facture
+UF --> CDR : ACL\nusages CDR
+UF --> AUD : evenements facture\net paiement
+
+note bottom
+Les systemes externes simules sont isoles par des ACL/adapters afin
+de proteger le modele de domaine interne des contrats techniques externes.
+end note
+
+@enduml

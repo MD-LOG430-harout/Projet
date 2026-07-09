@@ -1,0 +1,118 @@
+@startuml
+title Vue de deploiement - Docker Compose CanTelcoX Phase 1
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam database {
+  BorderColor #64748B
+  BackgroundColor #E0F2FE
+}
+skinparam node {
+  BorderColor #334155
+  BackgroundColor #F8FAFC
+}
+skinparam artifact {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam ArrowColor #334155
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+actor "Utilisateur /\nBack-office" as User
+actor "Developpeur /\nCI" as Dev
+
+node "Machine / VM fournie" as VM {
+  node "Docker Engine\nreseau compose par defaut" as Docker {
+    rectangle "api-gateway\nnginx:1.27-alpine\nport ${API_GATEWAY_PORT:-8080}->80\n/health" as Gateway #EAF2FF
+    rectangle "swagger-ui\nswaggerapi/swagger-ui\nport ${SWAGGER_UI_PORT:-8081}->8080" as Swagger #F8FAFC
+
+    rectangle "svc-clients-identite\nFlask/Gunicorn\n/health /metrics" as Identity #DBEAFE
+    rectangle "svc-catalogue-offres\nFlask/Gunicorn\n/health /metrics" as Catalog #DBEAFE
+    rectangle "svc-commandes-activations\nFlask/Gunicorn\n/health /metrics" as Orders #DBEAFE
+    rectangle "svc-lignes-services\nFlask/Gunicorn\n/health /metrics" as Lines #DBEAFE
+    rectangle "svc-usage-facturation\nFlask/Gunicorn\n/health /metrics" as Billing #DBEAFE
+    rectangle "svc-conformite-audit\nFlask/Gunicorn\n/health /metrics" as Audit #FEF3C7
+
+    database "mysql\nmysql:8.4\nport 3306\nvolume mysql-data" as MySQL
+    rectangle "mysql-bootstrap\nschemas + grants" as Bootstrap #F8FAFC
+    rectangle "redis\nredis:7-alpine\nport ${REDIS_PORT:-6379}" as Redis
+
+    rectangle "prometheus\nprom/prometheus\nport ${PROMETHEUS_PORT:-9090}\nscrape /metrics" as Prometheus
+    rectangle "grafana\ngrafana/grafana\nport ${GRAFANA_PORT:-3000}\nvolume grafana-data" as Grafana
+    rectangle "locust\nprofile load-test\nport ${LOCUST_PORT:-8089}" as Locust
+
+    artifact "infra/nginx/nginx.conf" as NginxConf
+    artifact "docs/api/openapi.yaml" as OpenApi
+    artifact "infra/mysql/init/*.sql" as SqlInit
+    artifact "infra/prometheus/prometheus.yml" as PromConf
+    artifact "infra/grafana/provisioning\n+ dashboards" as GrafanaConf
+  }
+}
+
+cloud "free5GC WebUI\nou HLR mock local" as Free5gc
+
+User --> Gateway : HTTP/JSON\n/v1/*
+User --> Swagger : consulter OpenAPI
+Dev --> VM : docker compose up\nbuild/test/deploy
+
+Gateway --> Identity : /v1/customers\n/v1/auth\n/_oauth2/introspect
+Gateway --> Catalog : /v1/offers
+Gateway --> Orders : /v1/orders\n/v1/activations
+Gateway --> Lines : /v1/lines
+Gateway --> Billing : /v1/invoices
+Gateway --> Audit : /v1/audit-events
+
+Gateway ..> NginxConf : bind mount ro
+Swagger ..> OpenApi : bind mount ro
+MySQL ..> SqlInit : init scripts ro
+Prometheus ..> PromConf : bind mount ro
+Grafana ..> GrafanaConf : provisioning ro
+
+Bootstrap --> MySQL : create schemas\nand grants
+Identity --> MySQL : SQL clients_identite
+Catalog --> MySQL : SQL catalogue_offres
+Orders --> MySQL : SQL commandes_activations
+Lines --> MySQL : SQL lignes_services
+Billing --> MySQL : SQL usage_facturation
+Audit --> MySQL : SQL conformite_audit
+Catalog --> Redis : cache offres
+
+Orders --> Identity : REST interne\ncustomer validation
+Orders --> Catalog : REST interne\noffer validation
+Orders --> Lines : REST interne\nline activation
+Orders --> Audit : REST interne\naudit events
+Billing --> Identity : REST interne\ncustomer validation
+Billing --> Audit : REST interne\naudit events
+Identity --> Audit : REST interne\naudit events
+Lines --> Free5gc : REST si HLR_ENABLED=true
+
+Prometheus --> Identity : scrape /metrics
+Prometheus --> Catalog : scrape /metrics
+Prometheus --> Orders : scrape /metrics
+Prometheus --> Lines : scrape /metrics
+Prometheus --> Billing : scrape /metrics
+Prometheus --> Audit : scrape /metrics
+Grafana --> Prometheus : PromQL dashboards
+Locust --> Gateway : load tests\nprofile load-test
+
+note bottom of Gateway
+NGINX agit comme API Gateway et load balancer.
+La configuration utilise des upstreams Docker DNS
+avec least_conn et proxy_next_upstream.
+end note
+
+note bottom of Docker
+Tous les services applicatifs exposent /health.
+Les conteneurs applicatifs exposent aussi /metrics
+pour Prometheus et les 4 Golden Signals.
+end note
+
+@enduml

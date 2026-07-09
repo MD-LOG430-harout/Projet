@@ -1,0 +1,68 @@
+@startuml
+title UC-01 - Inscription et verification d'identite simulee
+
+autonumber
+actor "Abonne / representant PME" as Subscriber
+participant "API Gateway\nNGINX" as Gateway
+participant "svc-clients-identite\nREST Controller" as IdentityApi
+participant "RegisterCustomer\nUse case" as UseCase
+participant "CustomerRepository\nMySQL adapter" as CustomerRepo
+database "clients_identite\nMySQL" as IdentityDb
+participant "AuditClient\nHTTP adapter" as AuditClient
+participant "svc-conformite-audit" as AuditService
+database "conformite_audit\nMySQL" as AuditDb
+
+Subscriber -> Gateway : POST /v1/customers/register\nTraceId + registration payload
+Gateway -> IdentityApi : Forward request
+IdentityApi -> UseCase : execute(payload, trace_id)
+
+UseCase -> UseCase : Normalize email, province,\npostal code and document fields
+UseCase -> UseCase : Validate required fields,\nCanadian province, postal code,\ndocument type and password length
+
+alt invalid registration data
+  UseCase --> IdentityApi : ApiError 400 validation_error
+  IdentityApi --> Gateway : 400 normalized error
+  Gateway --> Subscriber : 400 validation_error
+else valid registration data
+  UseCase -> CustomerRepo : find_by_email(email)
+  CustomerRepo -> IdentityDb : SELECT customer WHERE email
+  IdentityDb --> CustomerRepo : existing customer or null
+
+  alt email already exists
+    CustomerRepo --> UseCase : existing customer
+    UseCase --> IdentityApi : ApiError 409 customer_exists
+    IdentityApi --> Gateway : 409 normalized error
+    Gateway --> Subscriber : 409 customer_exists
+  else email is unique
+    CustomerRepo --> UseCase : null
+    UseCase -> UseCase : Simulated identity verification\nPhase 1: identityStatus=VERIFIED,\nriskLevel=LOW
+    UseCase -> UseCase : Hash identity document number\nand password
+    UseCase -> CustomerRepo : create(Customer ACTIVE / VERIFIED / LOW)
+    CustomerRepo -> IdentityDb : INSERT customers
+    IdentityDb --> CustomerRepo : inserted
+    UseCase -> CustomerRepo : set_password_hash(customer_id, hash)
+    CustomerRepo -> IdentityDb : UPDATE password_hash
+    IdentityDb --> CustomerRepo : updated
+
+    UseCase -> AuditClient : record(CUSTOMER_REGISTERED, trace_id)
+    AuditClient -> AuditService : POST /v1/audit-events
+    AuditService -> AuditDb : INSERT audit_events
+    AuditDb --> AuditService : inserted
+    AuditService --> AuditClient : 201 Created
+
+    UseCase --> IdentityApi : Customer
+    IdentityApi --> Gateway : 201 public customer JSON
+    Gateway --> Subscriber : 201 Created\nstatus=ACTIVE,\nidentityStatus=VERIFIED,\nriskLevel=LOW
+  end
+end
+
+note over Subscriber,IdentityApi
+  OTP/MFA is not part of UC-01 in Phase 1.
+  Login and MFA verification are covered by UC-02.
+end note
+
+note over UseCase
+  The simulated KYC/risk decision is synchronous in Phase 1.
+  Advanced async KYC and manual review are future work.
+end note
+@enduml

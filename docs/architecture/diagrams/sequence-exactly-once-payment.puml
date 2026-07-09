@@ -1,0 +1,59 @@
+@startuml
+title Exactly-once pratique - Paiement de facture UC-06
+
+autonumber
+actor "Abonne / PME" as User
+participant "API Gateway\nNGINX" as Gateway
+participant "svc-usage-facturation\nPOST /v1/invoices/{invoiceId}/payments" as Billing
+database "DB usage_facturation\ninvoices, payments" as BillingDb
+participant "Passerelle de paiement\nsimulee" as PaymentGateway
+participant "svc-conformite-audit" as Audit
+
+== Paiement initial ==
+
+User -> Gateway : POST /v1/invoices/inv-1/payments\nIdempotency-Key: pay-123\npayload A
+Gateway -> Billing : forward
+Billing -> Billing : calculer request_hash(invoiceId + payload A)
+Billing -> BillingDb : find_payment_by_idempotency_key(pay-123)
+BillingDb --> Billing : aucun paiement existant
+Billing -> BillingDb : get_invoice(inv-1)
+BillingDb --> Billing : invoice OPEN,\namount_due=payload.amount,\ncurrency=CAD
+Billing -> Audit : POST /v1/audit-events\nPAYMENT_REQUESTED
+Audit --> Billing : 201
+Billing -> PaymentGateway : charge(payment request)
+PaymentGateway --> Billing : ACCEPTED,\ngatewayTransactionId
+Billing -> BillingDb : transaction locale:\nINSERT payment ACCEPTED\nUPDATE invoice status=PAID
+Billing -> Audit : POST /v1/audit-events\nPAYMENT_ACCEPTED
+Billing -> Audit : POST /v1/audit-events\nINVOICE_PAID
+Billing --> Gateway : 201 payment ACCEPTED\nIdempotency-Replayed=false
+Gateway --> User : 201 paiement confirme
+
+== Rejeu identique ==
+
+User -> Gateway : POST /v1/invoices/inv-1/payments\nIdempotency-Key: pay-123\npayload A
+Gateway -> Billing : forward
+Billing -> Billing : calculer request_hash(invoiceId + payload A)
+Billing -> BillingDb : find_payment_by_idempotency_key(pay-123)
+BillingDb --> Billing : payment existant\nrequest_hash identique,\nresponse_body stocke,\nhttp_status=201
+Billing --> Gateway : 201 stored response\nIdempotency-Replayed=true
+Gateway --> User : 201 meme paymentId\naucun second paiement
+
+== Rejeu avec payload different ==
+
+User -> Gateway : POST /v1/invoices/inv-1/payments\nIdempotency-Key: pay-123\npayload B
+Gateway -> Billing : forward
+Billing -> Billing : calculer request_hash(invoiceId + payload B)
+Billing -> BillingDb : find_payment_by_idempotency_key(pay-123)
+BillingDb --> Billing : payment existant\nrequest_hash different
+Billing --> Gateway : 409 idempotency_key_conflict
+Gateway --> User : 409 erreur JSON normalisee
+
+note over Billing,BillingDb
+Exactly-once pratique Phase 1:
+- contrainte unique uq_payments_idempotency_key;
+- request_hash pour detecter les conflits;
+- creation du paiement et passage facture=PAID
+  dans la meme transaction locale.
+end note
+
+@enduml

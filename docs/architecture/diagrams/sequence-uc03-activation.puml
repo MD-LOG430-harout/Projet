@@ -1,0 +1,93 @@
+@startuml
+title UC-03 - Activation d'une ligne (implementation Phase 1)
+
+actor "Abonne / PME / agent" as User
+participant "API Gateway" as Gateway
+participant "svc-commandes-activations\nPOST /v1/activations" as Activations
+database "DB commandes_activations\nactivations" as ActivationDb
+participant "svc-clients-identite" as Customers
+participant "svc-catalogue-offres" as Offers
+participant "svc-lignes-services\nPOST /v1/lines/activate" as Lines
+database "DB lignes_services\nservice_lines" as LinesDb
+participant "HLR/free5GC adapter\n(mock if disabled)" as Hlr
+participant "svc-conformite-audit" as Audit
+
+User -> Gateway: POST /v1/activations\nIdempotency-Key, TraceId\ncustomerId, offerId, simType,\nnumberMode?, msisdn?
+Gateway -> Activations: Forward request
+
+alt Idempotency-Key missing
+  Activations --> Gateway: 400 missing_idempotency_key
+  Gateway --> User: 400
+else Idempotency-Key already used
+  Activations -> ActivationDb: find_by_idempotency_key(key)
+  alt Same payload hash
+    ActivationDb --> Activations: stored response
+    Activations --> Gateway: 201 stored response\nIdempotency-Replayed: true
+    Gateway --> User: 201 replay
+  else Different payload hash
+    Activations --> Gateway: 409 idempotency_key_conflict
+    Gateway --> User: 409
+  end
+else New activation command
+  Activations -> ActivationDb: find_by_idempotency_key(key)
+  ActivationDb --> Activations: none
+  Activations -> Audit: ACTIVATION_REQUESTED
+
+  Activations -> Customers: GET /v1/customers/{customerId}
+  Customers --> Activations: status, identityStatus, riskLevel
+
+  alt Customer inactive, unverified, missing, or high risk
+    Activations -> Audit: ACTIVATION_FAILED or\nACTIVATION_BLOCKED_HIGH_RISK
+    Activations --> Gateway: 404/409 normalized error
+    Gateway --> User: error
+  else Customer eligible
+    Activations -> Audit: ACTIVATION_CUSTOMER_VALIDATED
+    Activations -> Offers: GET /v1/offers/{offerId}
+    Offers --> Activations: offer status
+
+    alt Offer missing or inactive
+      Activations -> Audit: ACTIVATION_FAILED
+      Activations --> Gateway: 404/409 normalized error
+      Gateway --> User: error
+    else Offer active
+      Activations -> Audit: ACTIVATION_OFFER_VALIDATED
+      Activations -> Lines: POST /v1/lines/activate\ncustomerId, offerId, simType,\nnumberMode, msisdn?
+
+      Lines -> LinesDb: check MSISDN availability
+      alt numberMode = NEW
+        Lines -> Lines: generate MSISDN, IMSI,\nSIM/eSIM identifier
+      else numberMode = PORT_IN
+        Lines -> Lines: accept provided MSISDN\nportabilityStatus = ACCEPTED
+      end
+
+      Lines -> LinesDb: create line status=PENDING\nhlrStatus=PENDING
+      Lines -> Hlr: provision(line, TraceId)
+
+      alt HLR/free5GC provisioning fails
+        Hlr --> Lines: failure / false
+        Lines -> LinesDb: mark FAILED
+        Lines --> Activations: 503 hlr_provisioning_failed
+        Activations -> Audit: ACTIVATION_FAILED
+        Activations --> Gateway: 503
+        Gateway --> User: 503
+      else Provisioning succeeds
+        Hlr --> Lines: provisioned
+        Lines -> LinesDb: mark ACTIVE\nhlrStatus=PROVISIONED
+        Lines --> Activations: lineId, msisdn,\nsimIdentifier, hlrStatus
+        Activations -> Audit: ACTIVATION_LINE_ACTIVATED
+        Activations -> ActivationDb: create replayable activation result
+        Activations -> Audit: ACTIVATION_COMPLETED
+        Activations --> Gateway: 201 activation ACTIVE
+        Gateway --> User: 201 activation ACTIVE
+      end
+    end
+  end
+end
+
+note over Activations,Lines
+Phase 1: UC-03 is a direct activation command.
+It does not require a pre-existing UC-05 order.
+Portability is simulated and accepted when a provided MSISDN is valid and available.
+end note
+
+@enduml

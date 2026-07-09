@@ -1,0 +1,32 @@
+@startuml
+title conformite_audit - Logical ER
+
+hide circle
+skinparam linetype ortho
+
+entity audit_events {
+  * audit_event_id : CHAR(36) <<PK>>
+  --
+  event_type : VARCHAR(120)
+  actor_id : VARCHAR(80)
+  customer_id : VARCHAR(80) <<logical ref>>
+  resource_id : VARCHAR(120)
+  trace_id : VARCHAR(120)
+  source_service : VARCHAR(120)
+  result : VARCHAR(40)
+  metadata : JSON
+  created_at : DATETIME
+  inserted_at : TIMESTAMP
+}
+
+note right of audit_events
+  Append-only safeguards:
+  - audit_events_no_update trigger
+  - audit_events_no_delete trigger
+
+  Indexes:
+  - idx_audit_customer_created(customer_id, created_at)
+  - idx_audit_trace(trace_id)
+  - idx_audit_event_type(event_type)
+end note
+@enduml

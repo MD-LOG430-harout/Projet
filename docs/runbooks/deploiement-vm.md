@@ -135,6 +135,40 @@ curl -i http://localhost:8080/health
 python -m pytest -p no:cacheprovider tests/e2e
 ```
 
+## Validation rapide pour le correcteur
+
+La Phase 1 est evaluee sur le livrable remis et la presentation du travail, sans soutenance orale. La soutenance orale est reportee a la Phase 2. Pour verifier rapidement la remise Phase 1 sur une VM ou un poste local Docker, executer depuis la racine du depot:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+bash scripts/wait-compose-health.sh 300
+curl -i http://localhost:8080/health
+python -m pytest -p no:cacheprovider tests/e2e
+python -m pytest -p no:cacheprovider tests/integration
+```
+
+Equivalent Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+docker compose up -d --build
+powershell -ExecutionPolicy Bypass -File scripts/wait-compose-health.ps1 -TimeoutSeconds 300
+Invoke-WebRequest -Uri http://localhost:8080/health
+python -m pytest -p no:cacheprovider tests/e2e
+python -m pytest -p no:cacheprovider tests/integration
+```
+
+Points de verification attendus:
+
+- `docker compose ps` montre MySQL, Redis, les six services Flask, `api-gateway`, Swagger UI, Prometheus et Grafana demarres.
+- `http://localhost:8080/health` retourne `200 OK`.
+- Swagger UI est disponible sur `http://localhost:8081`.
+- Prometheus est disponible sur `http://localhost:9090`.
+- Grafana est disponible sur `http://localhost:3000` avec les identifiants de demonstration `admin` / `admin`, sauf modification dans `.env`.
+- La collection Postman officielle se trouve dans `docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json` avec `baseUrl=http://localhost:8080`.
+- Le parcours officiel couvre UC-01, UC-02, UC-03, UC-05, UC-06 et l'audit par `TraceId`. UC-04 et UC-08 sont documentes comme hors perimetre d'implementation Phase 1.
+
 ## Deploiement en une commande
 
 Le script CD local utilise Git et Docker Compose. Il enregistre le commit courant avant de deploiement pour permettre un rollback simple.

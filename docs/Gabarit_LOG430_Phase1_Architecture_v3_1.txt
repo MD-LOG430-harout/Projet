@@ -6,7 +6,7 @@ Dossier d’architecture — gabarit Arc42 + vues 4+1 + ADR
 Projet CanTelcoX — Système de support commercial (BSS) télécom
 
  
-Équipe / N° d’équipe[À compléter — nom d’équipe et numéro]Membres (nom, code permanent)[À compléter — liste des membres]Cours / GroupeLOG430 — Groupe 01SessionÉté 2026Date de remise30 juin 2026, 23 h 59 (Moodle)Version du documentv1.0 — 2026-06-30
+Équipe / N° d’équipe[À compléter — nom d’équipe et numéro]Membres (nom, code permanent)[À compléter — liste des membres]Cours / GroupeLOG430 — Groupe 01SessionÉté 2026Date de remise8 juilet 2026, 23 h 59 (Moodle)Version du documentv1.0 — 2026-06-30
 École de technologie supérieure — Département de génie logiciel et des TI
 Sommaire
 Mettez à jour le sommaire dans Word (clic droit ? « Mettre à jour les champs ») une fois le document complété.
@@ -107,104 +107,185 @@ Critères d’acceptation (à cocher)
 
 1.1 Aperçu des exigences
 CanTelcoX, opérateur mobile canadien fictif, déploie un BSS moderne pour abonnés particuliers et PME couvrant le cycle de vie des lignes mobiles : souscription, activation, consultation d’usage, prise de commande de forfaits/options, paiement de facture et conformité réglementaire.
-[À compléter — résumez en 1 paragraphe la mission du système et le périmètre de la Phase 1]
+La mission du système est de fournir une plateforme BSS minimale mais complète permettant à CanTelcoX de gérer le cycle de vie initial d’un abonné mobile particulier ou PME. Le périmètre de la Phase 1 couvre les capacités indispensables à l’ouverture et à l’exploitation commerciale d’une ligne mobile: inscription du client, vérification d’identité, authentification sécurisée, activation de ligne, prise de commande de forfaits ou d’options, paiement de facture et traçabilité des opérations critiques. Les fonctions avancées, comme la détection automatisée de fraude, la consultation détaillée d’usage ou l’exécution complète du cycle mensuel de facturation, peuvent être simulées, limitées ou reportées si elles ne sont pas nécessaires à la démonstration du périmètre minimal viable.
 La plateforme doit exposer ces capacités par une API REST sécurisée et documentée, orchestrée par une API Gateway, tout en s’intégrant à des infrastructures télécoms simulées telles que le réseau mobile, la portabilité, la passerelle de paiement et la médiation d’usage. L’architecture doit aussi soutenir les exigences de disponibilité, performance, sécurité, auditabilité et conformité réglementaire.
 1.2 Cas d’utilisation Must (MoSCoW)
 Catalogue de référence des UC du cahier :
-UCIntituléPriorité MoSCoWUC-01Inscription & vérification d’identitéMustUC-02Authentification & MFAMustUC-03Activation d’une ligneMustUC-04Consultation usage / facturesOptionalUC-05Prise de commandeMustUC-06Paiement de factureMustUC-07Détection de fraudeOptionalUC-08Cycle de facturation mensuelOptionalJustification de la priorisation MoSCoW
-[À compléter — expliquez en 1 paragraphe pourquoi ces UC sont « Must » : valeur métier, dépendances, exigences réglementaires, périmètre minimal viable. Mentionnez aussi, le cas échéant, les UC Should/Could/Won’t écartés et la raison.]
-Ces cas d’utilisation sont priorisés comme Must puisqu’ils représentent le périmètre minimal viable du BSS CanTelcoX. Ensemble, ils couvrent le cycle de vie essentiel d’un abonné mobile: création et vérification de l’identité, authentification sécurisée, activation d’une ligne, commande de forfaits ou d’options, consultation de l’usage, facturation et paiement. Ils sont également liés à des exigences critiques du domaine télécom canadien, notamment la sécurité des activations, la prévention de la fraude, l’auditabilité des opérations et la conformité réglementaire. Sans ces fonctionnalités, la plateforme ne pourrait pas fournir un service commercial complet ni démontrer les qualités architecturales attendues en Phase 1, comme la disponibilité, la performance, la sécurité et la traçabilité. Les fonctionnalités de type Should, Could ou Won’t sont donc reportées ou exclues de cette phase lorsqu’elles ne sont pas nécessaires au fonctionnement minimal du BSS ou à la démonstration des objectifs architecturaux prioritaires.
+UCIntituléPriorité MoSCoWUC-01Inscription & vérification d’identitéMustUC-02Authentification & MFAMustUC-03Activation d’une ligneMustUC-04Consultation usage / facturesShouldUC-05Prise de commandeMustUC-06Paiement de factureMustUC-07Détection de fraudeCouldUC-08Cycle de facturation mensuelShould
+Justification de la priorisation MoSCoW
+Les UC-01, UC-02, UC-03, UC-05 et UC-06 sont priorisés comme Must, car ils constituent le périmètre minimal viable du BSS CanTelcoX. Ils couvrent les étapes essentielles permettant de créer un client, sécuriser son accès, activer une ligne, commander une offre et encaisser un paiement. Ces cas d’utilisation portent aussi les principales exigences réglementaires et architecturales de la Phase 1: vérification d’identité, authentification forte, auditabilité des opérations, intégration avec les systèmes externes simulés, idempotence des commandes/activations et disponibilité des services critiques.
+Les UC-04, UC-07 et UC-08 sont classés Should ou Could selon leur profondeur d’implémentation, car ils enrichissent l’exploitation du BSS mais ne bloquent pas la démonstration du cycle minimal de souscription, activation, commande et paiement. En particulier, le paiement de facture relève du UC-06 et reste Must, tandis que le cycle mensuel complet de facturation relève du UC-08 et peut être limité ou reporté en Phase 1.
+
 Matrice de traçabilité UC ? domaines du cahier (bounded contexts)
 Cochez (?) le ou les domaines couverts par chaque UC, pour démontrer l’alignement avec le cahier. Ajustez selon les UC réellement retenus.
-UCClients & IdentitéLignes & ServicesCommandes & ActivationsCatalogue & OffresUsage / FacturationConformité & AuditUC-01 Inscription & identité??UC-02 Authentification & MFA??UC-03 Activation d’une ligne????UC-04 Consultation usage / factures??UC-05 Prise de commande????UC-06 Paiement de facture??UC-07 Détection de fraude?????UC-08 Cycle de facturation??
-
+UCClients & IdentitéLignes & ServicesCommandes & ActivationsCatalogue & OffresUsage / FacturationConformité & AuditUC-01 Inscription & identité??UC-02 Authentification & MFA??UC-03 Activation d’une ligne????UC-04 Consultation usage / factures??UC-05 Prise de commande?????UC-06 Paiement de facture??UC-07 Détection de fraude?????UC-08 Cycle de facturation??
 Détaillez ci-dessous les ? 5 UC retenus (un sous-bloc par UC) :
 ChampContenuUC retenuUC-01 — Inscription & vérification d’identitéActeursActeur principal: abonné particulier ou représentant PME. 
-Acteurs secondaires: Service Clients & Identité, service de vérification d’identité/KYC simulé, service de fraude/audit.PréconditionsL’abonné n’a pas encore de compte actif ou souhaite créer un nouveau profil client. Les services d’inscription, de validation d’identité et d’audit sont disponibles.Scénario principal1. L’abonné soumet ses informations personnelles ou d’entreprise.(regarder cahier de charge) 
-2. Le système valide les informations obligatoires.
-3. Le système crée un profil client au statut « Pending » avec un statut d’identité « non vérifié ».
-4. Le système déclenche une vérification d’identité simulée et fait passer le statut d’identité à « en cours ».
-5. L’abonné confirme son inscription via OTP/MFA.
-6. Le système reçoit le résultat de la vérification d’identité.
-7. Le système calcule ou reçoit un niveau de risque.
-8. Si la vérification est acceptée, que l’OTP/MFA est validé et que le risque est acceptable, le statut d’identité passe à « vérifié » et le profil client passe à « Active ».
-9. Un événement d’audit est enregistré avec horodatage, source et résultat.Scénarios alternatifs / exceptionsFA1 — Informations manquantes ou invalides: 2a.1 Le système détecte des informations obligatoires manquantes ou invalides. 2a.2 Le système refuse la demande d’inscription. 2a.3 Le système retourne une erreur de validation à l’abonné.
-FA2 — OTP/MFA invalide ou expiré: 5a.1 Le système détecte que le code OTP/MFA est invalide ou expiré. 5a.2 Le profil client reste au statut « Pending ». 5a.3 Le système permet une nouvelle tentative selon les règles de sécurité. 5a.4 La tentative échouée est journalisée.
-FA3 — Identité refusée: 6a.1 Le service de vérification retourne un statut « refusé ». 6a.2 Le profil client reste non activé. 6a.3 Le système journalise la raison du refus.
-FA4 — Risque élevé ou suspicion de fraude: 7a.1 Le système reçoit ou calcule un niveau de risque élevé. 7a.2 La demande est bloquée ou placée en révision manuelle. 7a.3 Une alerte de fraude est enregistrée dans le journal d’audit.
-FA5 — Service KYC ou OTP/MFA indisponible: 4a.1 Le service de vérification d’identité ou le service OTP/MFA est indisponible. 4a.2 Le profil reste au statut « Pending ». 4a.3 Le système permet une reprise ultérieure sans créer de doublon.Postconditions / règles métierUn profil client est créé uniquement si les données minimales sont valides. Le statut d’identité doit être conservé. Les vérifications doivent être journalisées avec horodatage, source et résultat. Les données sensibles doivent être protégées.
+Acteurs secondaires : Service Clients & Identité, service de vérification d’identité simulé, service Conformité & Audit.PréconditionsL’abonné n’a pas encore de compte actif avec la même adresse courriel. Les services Clients & Identité et Conformité & Audit sont disponibles.Scénario principal
+1. L’abonné soumet ses informations d’inscription : courriel, mot de passe, nom affiché, nom légal, adresse canadienne, type et numéro de document d’identité simulé, type de client. 
+2. Le système valide les champs obligatoires, le format du courriel, la longueur minimale du mot de passe, la province canadienne, le code postal et le document d’identité simulé. 
+3. Le système vérifie qu’aucun client n’existe déjà avec la même adresse courriel. 
+4. Le système effectue une vérification d’identité simulée synchrone pour la Phase 1. 
+5. Le système hache le numéro de document d’identité et le mot de passe avant persistance. 
+6. Le système crée le profil client avec status=ACTIVE, identityStatus=VERIFIED et riskLevel=LOW. 
+7. Le système enregistre un événement d’audit CUSTOMER_REGISTERED avec TraceId, source, résultat, statut d’identité et niveau de risque. 
+8. Le système retourne 201 Created avec le profil public du client, sans exposer le numéro de document ni le mot de passe.Scénarios alternatifs / exceptionsFA1 — Informations manquantes ou invalides: le système détecte des champs obligatoires manquants ou invalides, refuse la création du client et retourne 400 validation_error. Aucun client n’est créé. 
 
-ChampContenuUC retenuUC-02 — Authentification & MFAActeursActeur principal: abonné ou représentant PME. 
-Acteurs secondaires: Service d’identité, fournisseur MFA simulé, service Conformité & Audit.PréconditionsLe client possède un compte existant. Le compte n’est pas suspendu. Au moins un facteur MFA est configuré ou peut être généré.Scénario principal1. L’utilisateur saisit son identifiant et son mot de passe. 
-2. Le système valide les identifiants. 
-3. Le système évalue le niveau de risque de la connexion. 
-4. Le système demande un second facteur MFA. 
-5. L’utilisateur fournit le code OTP, WebAuthn ou autre facteur accepté. 
-6. Le système valide le MFA. 
-7. Une session sécurisée est créée. 
-8. L’événement de connexion est journalisé.Scénarios alternatifs / exceptionsFA1 — Identifiants invalides: 2a.1 Le système détecte que l’identifiant ou le mot de passe est invalide. 2a.2 Le système refuse l’accès. 2a.3 La tentative est journalisée.
-FA2 — MFA refusée ou expirée: 6a.1 Le système détecte que le code MFA est invalide, expiré ou refusé. 6a.2 Le système refuse la création de session. 6a.3 La tentative MFA échouée est journalisée.
-FA3 — Trop de tentatives échouées: 2b.1 Le système détecte plusieurs tentatives d’authentification échouées. 2b.2 Le compte est temporairement bloqué ou soumis à un délai de sécurité. 2b.3 Une alerte est enregistrée pour audit et détection de fraude.
-FA4 — Connexion à risque élevé: 3a.1 Le système détecte un contexte de connexion anormal ou risqué. 3a.2 Le système exige un facteur MFA renforcé. 3a.3 Si le facteur renforcé échoue, l’accès est refusé et l’événement est journalisé.Postconditions / règles métierUne session est créée uniquement après authentification et MFA réussis. Les tentatives importantes doivent être journalisées. Les actions sensibles peuvent exiger un facteur d’authentification plus fort.
-ChampContenuUC retenuUC-03 — Activation d’une ligneActeursActeur principal: abonné particulier, représentant PME ou agent back-office.
-Acteurs secondaires: Service Commandes & Activations, Service Lignes & Services, réseau simulé HLR/HSS/UDM, service fraude/audit.PréconditionsLe client est identifié et autorisé. Une commande valide existe. La ligne est en statut “Pending” ou équivalent. Les systèmes réseau simulés sont disponibles ou peuvent être appelés par reprise.Scénario principal1. Le système reçoit une demande d’activation de ligne associée à une commande. 
-2. Le service Commandes & Activations vérifie la commande, le forfait choisi et l’identité du client. 
-3. Le système vérifie que le niveau de risque du client est acceptable. 
-4. L’abonné indique s’il souhaite obtenir un nouveau numéro ou porter un numéro existant. 
-5. Si un nouveau numéro est demandé, le service Lignes & Services attribue un MSISDN disponible. 
-6. Si une portabilité est demandée, le système initie une demande de portabilité simulée auprès du hub de portabilité. 
-7. Le service Lignes & Services associe la ligne, le MSISDN et la SIM/eSIM au profil client. 
-8. Le système appelle l’adaptateur du réseau simulé HLR/HSS/UDM pour provisionner la ligne. 
-9. Le réseau simulé confirme le provisioning. 
-10. La ligne passe au statut “Active”. 
-11. La commande et l’activation sont journalisées dans le journal d’audit.Scénarios alternatifs / exceptionsFA1 — Commande inexistante ou invalide : 2a.1 Le système ne trouve pas de commande valide associée à la demande. 2a.2 L’activation est refusée. 2a.3 Le refus est journalisé. 
-FA2 — Risque élevé ou fraude détectée : 3a.1 Le système détecte un risque élevé ou une suspicion de fraude. 3a.2 L’activation est bloquée ou placée en révision manuelle. 3a.3 Une alerte est enregistrée dans le journal d’audit. 
-FA3 — Aucun MSISDN disponible: 5a.1 Le système ne trouve aucun numéro disponible pour l’attribution. 5a.2 L’activation est mise en attente ou refusée. 5a.3 La raison est journalisée. 
-FA4 — Portabilité refusée ou indisponible : 6a.1 Le hub de portabilité simulé refuse la demande ou ne répond pas. 6a.2 La ligne reste en statut “Pending” ou “PortabilityPending”. 6a.3 Le système conserve la demande pour reprise ou correction. 
-FA5 — SIM/eSIM invalide ou déjà utilisée : 7a.1 Le système détecte que la SIM/eSIM est invalide, inactive ou déjà associée à une autre ligne. 7a.2 L’activation est refusée. 7a.3 La raison du refus est journalisée. 
-FA6 — Échec du réseau simulé : 8a.1 Le réseau simulé HLR/HSS/UDM retourne une erreur ou ne répond pas. 8a.2 La ligne reste en statut “Pending” ou passe en statut “ActivationFailed”. 8a.3 Le système conserve la demande pour reprise ultérieure. 
-FA7 — Requête répétée : 1a.1 Le système reçoit une demande déjà traitée avec la même clé d’idempotence. 1a.2 Le système retourne le résultat déjà connu. 1a.3 Aucune nouvelle activation n’est déclenchée.Postconditions / règles métierUne ligne activée doit avoir un statut clair, une SIM/eSIM associée et une trace d’audit. L’activation ne doit pas être exécutée deux fois pour la même demande. Les transitions de statut doivent être conservées.
+FA2 — Courriel déjà utilisé: le système détecte qu’un client existe déjà avec la même adresse courriel, refuse la demande et retourne 409 customer_exists. Aucun doublon n’est créé. 
+
+FA3 — Service d’audit indisponible: en exécution Docker Compose normale, le service dépend de l’audit en état healthy. Si l’appel audit échoue pendant la requête, l’erreur est traitée comme une indisponibilité transitoire et doit être journalisée côté service. 
+
+FA4 — KYC avancé ou risque élevé: non implémenté en Phase 1. Une vérification KYC asynchrone, un statut Pending ou une révision manuelle sont documentés comme extensions futures.Postconditions / règles métierUn profil client est créé seulement si les données minimales sont valides et si l’adresse courriel est unique. En Phase 1, la vérification d’identité est simulée de manière synchrone et le client est créé directement avec status=ACTIVE, identityStatus=VERIFIED et riskLevel=LOW. Le mot de passe et le numéro de document d’identité ne sont jamais stockés en clair. Un événement d’audit append-only est produit avec le TraceId.
+Figure 1.1 — Diagramme de séquence UC-01 Inscription et vérification d’identité.
+Ce diagramme montre le comportement réellement implémenté en Phase 1 : validation des données, vérification d’unicité du courriel, vérification d’identité simulée synchrone, hachage des données sensibles, création d’un client ACTIVE/VERIFIED et journalisation append-only. OTP/MFA est traité séparément par UC-02.
+
+
+ChampContenuUC retenuUC-02 — Authentification & MFAActeurs
+Acteur principal: abonné ou représentant PME. 
+Acteurs secondaires : Service Clients & Identité, fournisseur MFA simulé, service Conformité & Audit.PréconditionsLe client possède un compte existant. Le compte est actif. Les services Clients & Identité et Conformité & Audit sont disponibles.Scénario principal1. L’utilisateur saisit son courriel et son mot de passe. 
+2. Le système valide le format des données d’authentification. 
+3. Le système vérifie que le client existe, que le compte est actif et que le mot de passe correspond au hachage stocké. 
+4. Le système évalue le risque de connexion selon les règles simplifiées de la Phase 1. 
+5. Le système crée un challenge MFA de type OTP simulé. En Phase 1, le code OTP de démonstration est 123456 et peut être retourné dans le champ devOtp pour faciliter les tests. 
+6. Le système retourne une réponse indiquant que le MFA est requis, avec le niveau mfaStrength, par exemple STEP_UP pour une connexion jugée plus sensible. 
+7. L’utilisateur soumet le code OTP associé au challenge MFA. 
+8. Le système valide le code OTP, vérifie que le challenge n’est pas expiré et qu’il n’a pas déjà été utilisé. 
+9. Après MFA réussi, le système crée une session de démonstration sous forme de jeton dev-session-{challengeId}. 
+10. Les événements de login, de challenge MFA et de validation MFA sont journalisés dans le service Conformité & Audit avec le TraceId. 
+11. Le système retourne le jeton de session à utiliser comme Bearer token sur les endpoints protégés.Scénarios alternatifs / exceptionsFA1 — Identifiants invalides: si le courriel ou le mot de passe est invalide, le système refuse l’accès et retourne 401 invalid_credentials. La tentative est auditée. 
+
+FA2 — Compte non actif: si le client existe mais que son compte n’est pas actif, le système refuse l’accès et retourne 403 customer_not_active. 
+
+FA3 — Trop de tentatives échouées: si le nombre de tentatives échouées dépasse la limite prévue, le compte est temporairement bloqué et le système retourne 423 customer_temporarily_locked. L’événement est journalisé. 
+
+FA4 — OTP invalide: si le code OTP fourni ne correspond pas au challenge, le système refuse la validation MFA et retourne 401 mfa_invalid. 
+
+FA5 — OTP expiré: si le challenge MFA est expiré, le système retourne 422 mfa_expired. 
+
+FA6 — Challenge MFA déjà utilisé: si le même challenge MFA est rejoué après une validation réussie, le système retourne 409 mfa_already_used. 
+
+FA7 — Connexion à risque élevé: si le système détecte un contexte plus risqué, il retourne un niveau mfaStrength=STEP_UP. En Phase 1, cela reste un renforcement logique du scénario MFA simulé, sans fournisseur SMS, push ou WebAuthn réel.Postconditions / règles métierUne session est créée uniquement après authentification par mot de passe et validation MFA réussie. Le jeton retourné en Phase 1 est un jeton de démonstration dev-session-{challengeId} et non un JWT/OIDC de production. Les tentatives de connexion, la création du challenge MFA et la validation MFA sont journalisées avec le TraceId. Les challenges MFA expirés ou déjà utilisés ne peuvent pas créer de session.
+Figure 1.2 — Diagramme de séquence UC-02 Authentification et MFA.
+Ce diagramme montre le comportement réellement implémenté : validation du courriel et du mot de passe, évaluation du risque de connexion, création d’un challenge MFA OTP simulé, validation du challenge, journalisation audit et création d’une session de démonstration dev-session-{challengeId}.
+
+
+ChampContenuUC retenuUC-03 — Activation d’une ligneActeurs
+Acteur principal: abonné particulier, représentant PME ou agent back-office.
+ Acteurs secondaires : Service Commandes & Activations, Service Clients & Identité, Service Catalogue & Offres, Service Lignes & Services, réseau simulé HLR/free5GC, service Conformité & Audit.Préconditions
+Le client existe, son compte est ACTIVE et son identité est VERIFIED. L’offre demandée existe et est active. La requête contient un TraceId et une Idempotency-Key. Les services nécessaires sont disponibles.Scénario principal
+1. Le client envoie POST /v1/activations avec customerId, offerId, simType, numberMode optionnel, msisdn optionnel, TraceId et Idempotency-Key. 
+2. Le service Commandes & Activations valide la clé d’idempotence et refuse les doublons conflictuels. 
+3. Le service vérifie que le client existe, que son compte est ACTIVE et que son identité est VERIFIED. 
+4. Le service bloque l’activation si le niveau de risque du client est HIGH. 
+5. Le service vérifie que l’offre existe et que son statut est ACTIVE. 
+6. Le service Commandes & Activations appelle le service Lignes & Services pour créer la ligne. 
+7. Si numberMode=NEW, le service Lignes & Services génère un MSISDN, un IMSI et un identifiant SIM/eSIM. 
+8. Si numberMode=PORT_IN, le service Lignes & Services accepte le MSISDN fourni et marque la portabilité simulée comme ACCEPTED. 
+9. Le service Lignes & Services crée la ligne en statut PENDING. 
+10. Le service Lignes & Services appelle l’adaptateur réseau HLR/free5GC pour provisionner la ligne. 
+11. Si le provisioning réussit, la ligne passe au statut ACTIVE avec hlrStatus=PROVISIONED. 
+12. Le service Commandes & Activations enregistre le résultat rejouable de l’activation. 
+13. Les événements importants sont journalisés dans le service Conformité & Audit avec le TraceId. 
+14. Le système retourne le résultat de l’activation au client.Scénarios alternatifs / exceptionsFA1 — Requête invalide ou clé d’idempotence manquante: le système détecte une requête invalide ou une Idempotency-Key absente et retourne une erreur de validation. Aucune activation n’est créée. 
+
+FA2 — Requête répétée identique: le système reçoit une demande déjà traitée avec la même clé d’idempotence et le même contenu. Il retourne le résultat déjà connu sans déclencher une nouvelle activation. 
+
+FA3 — Requête répétée conflictuelle: le système reçoit la même clé d’idempotence avec un contenu différent. Il refuse la demande afin d’éviter une activation ambiguë. 
+
+FA4 — Client inexistant, non actif ou identité non vérifiée : le système refuse l’activation si le client n’existe pas, si son compte n’est pas ACTIVE ou si son identité n’est pas VERIFIED. Le refus est journalisé. 
+
+FA5 — Risque client élevé: si le niveau de risque du client est HIGH, l’activation est bloquée. L’événement est journalisé dans Conformité & Audit. 
+
+FA6 — Offre inexistante ou inactive: si l’offre demandée n’existe pas ou n’est pas ACTIVE, l’activation est refusée. 
+
+FA7 — MSISDN déjà attribué: si le MSISDN généré ou fourni est déjà associé à une ligne existante, la création de ligne est refusée. 
+
+FA8 — Type de SIM invalide: si simType n’est pas accepté, la demande est refusée. En Phase 1, le système génère l’identifiant SIM/eSIM ; il ne gère pas un inventaire SIM complet. 
+
+FA9 — Échec du réseau simulé HLR/free5GC: si l’adaptateur réseau retourne une erreur ou ne répond pas, la ligne passe au statut FAILED et l’activation retourne une erreur, par exemple 503. Aucun mécanisme de reprise automatique n’est exposé en Phase 1.Postconditions / règles métierUne activation réussie crée une ligne mobile associée au client, à une offre, à un MSISDN, à un IMSI et à un identifiant SIM/eSIM. La ligne passe de PENDING à ACTIVE lorsque le provisioning réseau simulé réussit. Une même demande ne doit pas être exécutée deux fois grâce à l’Idempotency-Key. Les événements critiques sont journalisés avec le TraceId.
+Figure 1.3 — Diagramme de séquence UC-03 Activation d’une ligne mobile.
+Ce diagramme montre le comportement réellement implémenté : réception d’une demande directe POST /v1/activations, validation de l’idempotence, vérification du client ACTIVE/VERIFIED, validation de l’offre active, blocage du risque HIGH, création de la ligne par svc-lignes-services, provisioning via l’adaptateur HLR/free5GC, passage de la ligne à ACTIVE et journalisation audit avec TraceId.
+
+
 ChampContenuUC retenuUC-05 — Prise de commandeActeursActeur principal: abonné particulier, représentant PME ou agent back-office.
-Acteurs secondaires: Service Catalogue & Offres, Service Commandes & Activations, Service Clients & Identité, service fraude/audit.PréconditionsLe client est authentifié ou identifié. Le catalogue contient au moins une offre active. Le client est admissible à l’offre choisie.Scénario principal1. L’utilisateur consulte les offres disponibles.
-2. L’utilisateur saisit une commande: nouveau forfait, changement de forfait ou option additionnelle.
-3. Le système vérifie l’éligibilité du client.
-4. Le système applique les contrôles anti-fraude.
-5. Le système vérifie la compatibilité de l’offre avec la ligne ou le profil client.
-6. Le système crée la commande.
-7. Le système exécute la commande ou déclenche son orchestration.
-8. Le profil de service de la ligne est mis à jour.
-9. Une confirmation est envoyée à l’abonné.
-10. Un événement de commande est enregistré et journalisé.Scénarios alternatifs / exceptionsFA1 — Offre inexistante ou retirée: 2a.1 Le système détecte que l’offre sélectionnée n’existe plus ou n’est plus active. 2a.2 La commande est refusée. 2a.3 Le système invite l’utilisateur à choisir une autre offre.
-FA2 — Client non admissible: 3a.1 Le système détecte que le client n’est pas admissible à l’offre. 3a.2 La commande est refusée. 3a.3 La raison du refus est journalisée.
-FA3 — Suspicion de fraude: 4a.1 Le système détecte un niveau de risque élevé pendant la prise de commande. 4a.2 La commande est bloquée ou placée en révision manuelle. 4a.3 Une alerte est enregistrée dans le journal d’audit.
-FA4 — Offre incompatible: 5a.1 Le système détecte que l’offre est incompatible avec la ligne, le type de compte ou une option existante. 5a.2 La commande est refusée. 5a.3 Le système affiche la cause d’incompatibilité.
-FA5 — Échec d’exécution ou de provisionnement: 7a.1 Le système ne parvient pas à exécuter la commande ou à provisionner le service. 7a.2 La commande passe au statut “Failed” ou “PendingRetry”. 7a.3 L’échec est journalisé et une reprise peut être planifiée.
-FA6 — Échec d’envoi de confirmation: 9a.1 La commande est exécutée, mais la confirmation ne peut pas être envoyée. 9a.2 Le système conserve la commande comme exécutée. 9a.3 Une reprise de notification est planifiée.
-FA7 — Doublon de commande: 6a.1 Le système reçoit une commande répétée avec la même clé d’idempotence. 6a.2 Le système retourne la commande déjà créée. 6a.3 Aucune nouvelle commande n’est créée.Postconditions / règles métierUne commande valide doit référencer le client, l’offre choisie et le statut de commande. Les commandes doivent être traçables. Une même demande ne doit pas créer plusieurs commandes identiques.
-ChampContenuUC retenuUC-06 — Paiement de factureActeursActeur principal: abonné particulier ou représentant PME.
-Acteurs secondaires: Service Usage / Facturation, passerelle de paiement simulée, service audit.PréconditionsL’utilisateur est authentifié. Une facture payable existe. La passerelle de paiement simulée est disponible ou le paiement peut être repris plus tard.Scénario principal1. L’utilisateur sélectionne une facture à payer.
-2. Le système vérifie le montant et le statut de la facture.
-3. L’utilisateur choisit un moyen de paiement.
-4. Le système transmet la demande à la passerelle de paiement simulée.
-5. La passerelle confirme le paiement.
-6. Le système marque la facture comme payée ou partiellement payée.
-7. Une confirmation de paiement est générée.
-8. L’événement de paiement est journalisé pour audit.Scénarios alternatifs / exceptionsFA1 — Facture inexistante ou non payable: 2a.1 Le système détecte que la facture n’existe pas, est annulée ou n’est pas payable. 2a.2 Le paiement est refusé. 2a.3 La raison du refus est affichée et journalisée.
-FA2 — Paiement refusé: 5a.1 La passerelle de paiement retourne un refus. 5a.2 La facture reste impayée. 5a.3 Le refus est journalisé.
-FA3 — Facture déjà payée: 2b.1 Le système détecte que la facture est déjà payée. 2b.2 Le système bloque le nouveau paiement. 2b.3 Le système retourne l’état actuel de la facture.
-FA4 — Timeout de la passerelle: 4a.1 La passerelle de paiement ne répond pas dans le délai prévu. 4a.2 Le paiement est placé en statut “en attente”. 4a.3 Le système conserve la transaction pour réconciliation ou reprise.
-FA5 — Requête répétée: 1a.1 Le système reçoit une demande de paiement répétée avec la même clé d’idempotence. 1a.2 Le système retourne le résultat de paiement déjà connu. 1a.3 Aucune nouvelle transaction de paiement n’est créée.Postconditions / règles métierUne facture ne doit pas être payée deux fois pour la même transaction. Les écritures de paiement doivent être traçables. Le statut de la facture doit être cohérent avec le résultat de paiement.
+Acteurs secondaires: Service Catalogue & Offres, Service Commandes & Activations, Service Clients & Identité, service fraude/audit.PréconditionsLe client est authentifié ou identifié. Le catalogue contient au moins une offre active. Le client est admissible à l’offre choisie.Scénario principal
+1. L’utilisateur consulte les offres disponibles. 
+2. L’utilisateur soumet POST /v1/orders avec customerId, offerId, orderType, quantity, TraceId et Idempotency-Key. 
+3. Le service Commandes & Activations valide la clé d’idempotence et rejoue la réponse si une commande identique existe déjà. 
+4. Le système vérifie que le client existe, que son compte est ACTIVE et que son identité est VERIFIED. 
+5. Le système vérifie le niveau de risque du client. 
+6. Le système vérifie que l’offre existe dans le catalogue et que son statut est ACTIVE. 
+7. Pour NEW_PLAN, le système calcule le montant total à partir du prix mensuel de l’offre et de la quantité demandée. 
+8. Le système crée la commande avec le statut ACCEPTED. 
+9. La commande reçoit orchestrationStatus=READY_FOR_ACTIVATION. 
+10. La confirmation est simulée avec confirmationStatus=SIMULATED_SENT. 
+11. Les événements de commande sont journalisés dans le service Conformité & Audit avec le TraceId. 
+12. Le système retourne la commande créée au client.Scénarios alternatifs / exceptions
+FA1 — Requête invalide ou clé d’idempotence manquante: le système détecte une requête invalide ou une Idempotency-Key absente et retourne une erreur de validation. Aucune commande n’est créée. 
+
+FA2 — Requête répétée identique: le système reçoit une demande déjà traitée avec la même clé d’idempotence et le même contenu. Il retourne la commande déjà créée sans créer de doublon. 
+
+FA3 — Requête répétée conflictuelle: le système reçoit la même clé d’idempotence avec un contenu différent. Il refuse la demande pour éviter une commande ambiguë. 
+
+FA4 — Client inexistant, non actif ou identité non vérifiée: si le client n’existe pas, si son compte n’est pas ACTIVE ou si son identité n’est pas VERIFIED, la commande est refusée et l’événement est journalisé. 
+
+FA5 — Risque client élevé: si le niveau de risque du client est HIGH, la commande est bloquée. L’événement est journalisé dans Conformité & Audit. 
+
+FA6 — Offre inexistante ou inactive: si l’offre demandée n’existe pas ou n’est pas ACTIVE, la commande est refusée. 
+
+FA7 — Type de commande non supporté: les types CHANGE_PLAN et ADD_OPTION sont reconnus comme cas métier, mais leur exécution complète n’est pas implémentée en Phase 1. Le système retourne une erreur de compatibilité ou de fonctionnalité non supportée. 
+
+FA8 — Échec de confirmation: la confirmation est simulée en Phase 1. Aucun fournisseur réel de notification courriel/SMS/push n’est appelé. Un échec réel de notification est donc hors périmètre Phase 1.Postconditions / règles métierUne commande valide référence un client, une offre, un type de commande, une quantité et un montant calculé. Une commande acceptée reçoit le statut ACCEPTED et orchestrationStatus=READY_FOR_ACTIVATION. Une même demande ne doit pas créer plusieurs commandes grâce à l’Idempotency-Key. Les événements critiques sont journalisés avec le TraceId.	
+Figure 1.4 — Diagramme de séquence UC-05 Prise de commande / souscription à un forfait.
+Ce diagramme montre le comportement réellement implémenté : réception d’une demande POST /v1/orders, validation de l’idempotence, vérification du client ACTIVE/VERIFIED, contrôle du risque client, validation de l’offre active, calcul du montant pour NEW_PLAN, création d’une commande ACCEPTED avec orchestrationStatus=READY_FOR_ACTIVATION, confirmation simulée et journalisation audit avec TraceId.
+
+
+
+ChampContenuUC retenuUC-06 — Paiement de factureActeursActeur principal: abonné particulier ou représentant PME. 
+Acteurs secondaires : Service Usage / Facturation, passerelle de paiement simulée, service Conformité & Audit.PréconditionsLe client existe et peut être identifié. Une facture au statut OPEN existe pour ce client. La requête contient un TraceId et une Idempotency-Key. La passerelle de paiement simulée est disponible.Scénario principal
+1. L’utilisateur consulte ou sélectionne une facture existante. 
+2. L’utilisateur envoie POST /v1/invoices/{invoice_id}/payments avec customerId, paymentMethod=SIMULATED_CARD, amount, currency=CAD, TraceId et Idempotency-Key. 
+3. Le système valide la clé d’idempotence et rejoue le résultat si la même demande a déjà été traitée. 
+4. Le système vérifie que la facture existe. 
+5. Le système vérifie que la facture appartient au client indiqué. 
+6. Le système vérifie que la facture est au statut OPEN. 
+7. Le système vérifie que le montant et la devise correspondent exactement à la facture. 
+8. Le système journalise l’événement PAYMENT_REQUESTED. 
+9. Le système transmet la demande à la passerelle de paiement simulée. 
+10. Si la passerelle accepte, le système crée le paiement avec le statut ACCEPTED. 
+11. Le système marque la facture au statut PAID. 
+12. Le système journalise les événements PAYMENT_ACCEPTED et INVOICE_PAID. 
+13. Le système retourne la confirmation avec paymentId, gatewayTransactionId et invoiceStatus=PAID.Scénarios alternatifs / exceptionsFA1 — Requête invalide ou clé d’idempotence manquante: le système détecte une requête invalide ou une Idempotency-Key absente et retourne une erreur de validation. Aucun paiement n’est créé. 
+
+FA2 — Requête répétée identique: le système reçoit une demande déjà traitée avec la même clé d’idempotence et le même contenu. Il retourne le résultat déjà connu sans créer de nouvelle transaction. 
+
+FA3 — Requête répétée conflictuelle: le système reçoit la même clé d’idempotence avec un contenu différent. Il refuse la demande afin d’éviter un paiement ambigu. 
+
+FA4 — Facture inexistante: si la facture n’existe pas, le système refuse le paiement et retourne une erreur appropriée. Aucun paiement n’est créé. 
+
+FA5 — Facture appartenant à un autre client: si la facture ne correspond pas au customerId fourni, le paiement est refusé. 
+
+FA6 — Facture déjà payée ou non ouverte: si la facture n’est pas au statut OPEN, le système refuse le paiement afin d’éviter un double paiement. 
+
+FA7 — Montant ou devise invalide: si le montant ne correspond pas exactement au montant dû, ou si la devise n’est pas CAD, le système refuse le paiement. 
+
+FA8 — Passerelle de paiement simulée indisponible: si la passerelle simulée échoue ou ne répond pas, le système retourne 503 payment_gateway_unavailable. Aucun statut PENDING ni mécanisme de réconciliation n’est implémenté en Phase 1.Postconditions / règles métierUn paiement accepté crée une écriture de paiement avec le statut ACCEPTED et marque la facture comme PAID. Une facture OPEN ne peut être payée qu’une seule fois avec succès. La même demande ne doit pas générer plusieurs transactions grâce à l’Idempotency-Key. Les événements critiques sont journalisés avec le TraceId.
+Figure 1.5 — Diagramme de séquence UC-06 Paiement de facture mobile.
+Ce diagramme montre le comportement réellement implémenté : réception d’une demande POST /v1/invoices/{invoice_id}/payments, validation de l’idempotence, vérification de la facture OPEN, contrôle du client, du montant exact et de la devise CAD, appel à la passerelle de paiement simulée, création du paiement ACCEPTED, passage de la facture à PAID et journalisation audit avec TraceId.
+
+
+
 1.3 Objectifs de qualité
 Les trois objectifs de qualité prioritaires (cibles NFR du cahier) :
-Objectif de qualitéScénario / motivationCible mesurablePerformanceRéactivité sous charge nominale (UC-04/05)Latence P95 ? 500 msDébit / capacitéSoutenir le trafic pic? 600 opérations/sDisponibilitéContinuité de service (panne d’instance)Disponibilité 95 %Sécurité & auditabilitéProtéger les opérations sensibles : inscription, MFA, activation, paiement, détection de fraude et accès aux données personnellesMFA obligatoire pour les opérations sensibles; secrets protégés; audit append-only des événements critiques.1.4 Parties prenantes
-Partie prenanteRôle / attenteSection concernéeAbonnés particuliers / PMESouscription, usage, paiement§1, §6Opérateur (exploitation) Disponibilité, observabilité§7, §8.8, §10Régulateur (CRTC, Loi 25)Conformité, auditabilité§2, §8.4, §9Équipe de développementConcevoir, implémenter, tester et maintenir les microservices, les API REST et les pipelines CI/CD.§4, §5, §10.4Équipe DevOps / SREDéployer les services, gérer les conteneurs, le load balancing, l’observabilité, les métriques et la reprise après panne.§7, §8.8, §10Réseau et interconnexion simulésFournir les intégrations nécessaires : réseau HLR/HSS/UDM, hub de portabilité, passerelle de paiement et médiation d’usage.§3.2, §4.2, §7Équipe sécurité / conformitéDéfinir les contrôles MFA, anti-fraude, gestion des données sensibles, journalisation et audit append-only.§2.2, §8.4, §8.5, §8.62. Contraintes d’architecture
+Objectif de qualitéScénario / motivationCible mesurablePerformanceRéactivité des parcours critiques Phase 1 via API Gateway: MFA, commande, activation, paiementLatence P95 ? 500 msDébit / capacitéSoutenir un trafic de démonstration multi-services sans erreurs? 600 opérations/sDisponibilitéContinuité de service en cas de panne d’instance répliquée derrière GatewayDisponibilité 95 %Sécurité & auditabilitéProtéger les opérations sensibles: inscription, MFA, activation, commande, paiement et accès aux données personnellesAuthentification + MFA avant session; Idempotency-Key sur commandes sensibles; secrets via variables d’environnement; audit append-only des événements critiques1.4 Parties prenantes
+Partie prenanteRôle / attenteSection concernéeAbonnés particuliers / PMESouscrire, s’authentifier, commander un forfait, activer une ligne, consulter une facture et effectuer un paiement§1, §6, Annexe AOpérateur CanTelcoX / exploitationAssurer la disponibilité, la supervision, la traçabilité et l’exploitation quotidienne de la plateforme.§7, §8, §10, Annexe CRégulateur (CRTC, Loi 25)Vérifier la traçabilité, la protection des données personnelles et l’auditabilité des opérations sensibles.§2, §7, §9, Annexe BÉquipe de développementConcevoir, implémenter, tester et maintenir les services, les API REST, les contrats et les tests automatisés.§4, §5, §7, Annexes A-BÉquipe DevOps / SREDéployer la stack Docker Compose, maintenir la CI/CD, gérer les healthchecks, le load balancing, l’observabilité et le rollback.§7, §8, §10, Annexe CSystèmes externes simulésFournir les intégrations simulées: HLR/free5GC, passerelle de paiement, portabilité simplifiée et données d’usage/facturation de démonstration.§3, §4, §6Équipe sécurité / conformitéDéfinir les contrôles MFA, idempotence, anti-fraude simple, protection des données sensibles et audit append-only.§2, §7, §9, ADR-0022. Contraintes d’architecture
 Objectif Arc42 — Recenser les contraintes techniques, réglementaires et organisationnelles qui limitent les choix d’architecture.
 2.1 Contraintes techniques
-ContrainteDescription / impactDéploiementMachine virtuelle fournie ; conteneurisation Docker ; docker compose up unique.Communication (Phase 1)Synchrone REST entre services.DocumentationOpenAPI/Swagger ; modèle Arc42 ; vues 4+1 ; ? 3 ADR.ObservabilitéPrometheus + Grafana (4 Golden Signals).Pile technologiquePython / Flask pour les microservices REST; MySQL comme base relationnelle; Redis pour le cache; NGINX comme reverse proxy / load balancer; Prometheus + Grafana pour l’observabilité; Locust pour les tests de charge; Docker Compose pour l’orchestration locale et sur VM; GitHub Actions pour le CI/CD2.2 Contraintes réglementaires & conformité
+ContrainteDescription / impactDéploiementEnvironnement Docker propre de type VM; conteneurisation Docker; lancement reproductible avec docker compose up; déploiement scripté en une commande.Communication (Phase 1)Communication synchrone REST entre services via API Gateway; pas de bus événementiel lourd en Phase 1.DocumentationDocumentation OpenAPI/Swagger, modèle Arc42, vues 4+1, diagrammes PlantUML et décisions d’architecture documentées.ObservabilitéPrometheus + Grafana pour métriques et tableaux de bord; logs structurés; healthchecks /health; suivi des 4 Golden Signals.Pile technologiquePython/Flask pour les microservices REST; MySQL comme base relationnelle; Redis pour le cache catalogue; NGINX comme reverse proxy/load balancer; Prometheus + Grafana pour l’observabilité; Locust pour les tests de charge; Docker Compose pour l’orchestration; GitHub Actions pour la CI/CD.2.2 Contraintes réglementaires & conformité
 Le cadre télécom canadien impose des contraintes structurantes (à tracer vers les ADR §9) :
-CadreExigence dérivéeCRTC / Loi sur les télécommunicationsAuditabilité des opérations sensibles.Loi 25 / LPRPDEProtection des renseignements personnels, traçabilité des accès.Intégrité transactionnelleIdempotence (commandes/activations), exactly-once (facturation), journal d’audit append-only.Lutte à la fraudeContrôles SIM swap, usurpation d’identité, fraude roaming ; MFA sur opérations sensibles.2.3 Contraintes organisationnelles & conventions
+CadreExigence dérivéeCRTC / Loi sur les télécommunicationsTraçabilité et auditabilité des opérations sensibles: inscription, authentification, commande, activation, paiement et consultation des données.Loi 25 / LPRPDEProtection des renseignements personnels; minimisation des données exposées; secrets hors dépôt; journalisation sans fuite de données sensibles.Intégrité transactionnelleIdempotency-Key obligatoire pour commandes, activations et paiements; contraintes d’unicité en base; paiement d’une facture protégé contre les doublons; journal d’audit append-only.Lutte à la fraudeMFA avant session; blocage des clients à risque élevé; signaux de risque MFA simulés (newDevice, roaming, unusualLocation, simSwapRecent); fraude avancée conservée comme extension future.2.3 Contraintes organisationnelles & conventions
 [À compléter — conventions d’équipe : versionnement Git, normes de code, gestion des secrets via variables d’environnement, langue de la doc, etc.]
-ContrainteDescription / impactVersionnement GitLe code source, les fichiers Docker, la documentation et les scripts de déploiement sont versionnés dans un dépôt Git commun. Les changements doivent être intégrés par branches et revues avant fusion.Organisation du dépôtLe dépôt doit séparer clairement les microservices, la configuration Docker, la documentation d’architecture, les contrats OpenAPI et les scripts d’exploitation.Normes de codeLe code doit respecter des conventions communes de nommage, de structure, de formatage et de gestion des erreurs afin de faciliter la maintenance par l’équipe.Gestion des secretsAucun secret ne doit être stocké en clair dans le dépôt. Les mots de passe, clés et jetons doivent être fournis par variables d’environnement ou fichiers .env exclus du versionnement.DocumentationLa documentation d’architecture est rédigée en français selon le gabarit Arc42 + vues 4+1 + ADR. Les API sont documentées avec OpenAPI/Swagger.ReproductibilitéL’environnement doit pouvoir être lancé sur la VM avec une procédure simple, idéalement par docker compose up, afin de respecter l’objectif de reproductibilité.Usage de l’IA générativeL’IA générative peut être utilisée comme assistance au setup, au débogage, à la compréhension et à la complétion, mais l’équipe demeure responsable du contenu final et doit documenter son usage si demandé.
+ContrainteDescription / impactVersionnement GitLe code source, les fichiers Docker, les contrats API, la documentation et les scripts d’exploitation sont versionnés dans un dépôt Git commun. Les changements importants sont regroupés en commits cohérents et traçables.Organisation du dépôtLe dépôt sépare les services (services/), l’infrastructure Docker, les workflows CI/CD, les contrats OpenAPI/Postman, les ADR, les diagrammes et les runbooks.Normes de codeLe code suit des conventions communes de structure, de nommage, de validation d’entrée, de gestion d’erreurs normalisées et de tests automatisés.Gestion des secretsAucun secret réel ne doit être commité. Les paramètres sensibles passent par variables d’environnement ou .env local exclu du versionnement; .env.example documente les variables attendues.DocumentationLa documentation d’architecture est rédigée en français selon Arc42, vues 4+1, ADR, annexes API/persistance/CI-CD et diagrammes PlantUML. Les API sont documentées avec OpenAPI/Swagger et Postman.ReproductibilitéLa stack doit être reproductible dans un environnement Docker propre avec docker compose up; le déploiement VM est scripté avec rollback simple.Usage de l’IA générativeL’IA générative peut assister le setup, le débogage, la compréhension et la rédaction, mais l’équipe reste responsable de la validation, de l’intégration et de la soutenance du contenu final.
 Note SIAG (encadrement labos): l’usage des systèmes d’IA générative est encadré — assistance au setup, au débogage et à la complétion permise, mais la production directe des livrables évalués peut faire l’objet d’une vérification orale ou écrite. Documentez votre usage.
 3. Contexte et périmètre
 Objectif Arc42 — Délimiter le système vis-à-vis de ses partenaires (utilisateurs et systèmes externes) — contextes métier et technique — et cartographier le domaine (DDD).
@@ -478,22 +559,200 @@ Critères d’acceptation (à cocher)
 
 10.1 Arbre de qualité
 [À compléter — arbre de qualité : performance, disponibilité, sécurité, auditabilité, maintenabilité (priorisation)]
+Attribut de qualitéPrioritéJustificationPerformanceHauteLes opérations critiques comme la commande, l’activation et le paiement doivent répondre dans un délai acceptable pour une démonstration BSS.CapacitéHauteLe système doit supporter plusieurs utilisateurs simulés via Locust et exposer ses limites de charge.DisponibilitéMoyenneLe système doit rester stable sous charge nominale, mais la tolérance complète aux pannes multi-instances reste limitée en Phase 1.SécuritéHauteLes opérations sensibles utilisent authentification, MFA, jeton Bearer, validation d’entrée et erreurs normalisées.AuditabilitéHauteLes actions critiques doivent être traçables avec TraceId et journalisées dans un audit log append-only.MaintenabilitéMoyenneLes services suivent une séparation domaine/application/adapters afin de faciliter l’évolution des cas d’utilisation.ReproductibilitéHauteLe correcteur doit pouvoir lancer le système avec Docker Compose et rejouer les tests/Postman.
 10.2 Scénarios de qualité
-AttributStimulusRéponse attendue / mesurePerformanceConsultation usage à cadence élevée (UC-04)P95 ? 500 msCapacitéMontée en charge? 600 ops/s avant saturationDisponibilitéKill d’une instance en chargeMaintien de 95 % de disponibilitéSécuritéOpération sensible sans MFARefus + journalisation[À compléter — autre][À compléter — …][À compléter — …]10.3 Cibles NFR & résultats
-IndicateurCibleMesuréVerdictLatence P95? 500 ms[À compléter — …][À compléter — ? / écart]Débit? 600 ops/s[À compléter — …][À compléter — …]Disponibilité95 %[À compléter — …][À compléter — …]Synthèse ; le détail des mesures et les captures figurent aux §10.5 à §10.8.
+AttributStimulusRéponse attenduemesure / preuveUC-05 — Consultation des offresUn abonné consulte les forfaits actifs via /v1/offers.Le catalogue répond via l’API Gateway avec une liste d’offres actives.Postman, Swagger, logs Gateway, Locust.UC-05 — Création de commandeUn abonné crée une commande avec Idempotency-Key.La commande est créée une seule fois, rejouable sans doublon.Postman, base MySQL, audit events.UC-03 — Activation de ligneUne activation est demandée pour un client et une offre valides.La ligne reçoit un MSISDN, une SIM/eSIM, un statut clair et un audit.Postman, MySQL, free5GC/adapter HLR, audit.UC-06 — Paiement de factureUn abonné paie une facture ouverte.Le paiement est accepté via passerelle simulée, la facture passe à PAID.Postman, MySQL, audit, tests.UC-02 — Authentification MFAL’abonné se connecte puis valide le code MFA.Une session sécurisée est créée après MFA réussi.Postman, logs, tests automatisés.Traçabilité auditUne requête porte un TraceId.Le même TraceId apparaît dans les logs multi-services et les événements d’audit.Docker logs, endpoint audit.Reproductibilité DockerLe correcteur lance docker compose up --build.Les services, bases, Gateway, Swagger, Prometheus et Grafana démarrent.docker compose ps, healthchecks.
+10.3 Cibles NFR & résultats
+IndicateurCibleMesuréVerdictLatence P95? 500 ms
+260 ms sur GET /v1/offers via Gateway optimisé; 300 ms au palier 3 du scénario mixte; saturation au palier 4 avec 730 msAtteint sous charge nominale / optimisée ; saturation identifiée au palier 4Débit? 600 ops/s
+668.77 ops/s sur GET /v1/offers via Gateway optimisé ; environ 347 ops/s sur le scénario mixte completAtteint sur le scénario catalogue optimisé ; partiel sur le scénario mixte completDisponibilité95 %
+99.9976 % pendant le test de failover; 1 échec sur 41 509 requêtesAtteintSynthèse ; le détail des mesures et les captures figurent aux §10.5 à §10.8.
+La section 10.3 constitue la synthèse finale du chapitre 10 et a été complétée après les mesures détaillées des sections 10.5 à 10.8. La baseline de 10.5 identifie le seuil de saturation avant optimisation. Les sections 10.6 et 10.7 montrent ensuite les effets du load balancing et du caching. Le débit cible de 600 ops/s est atteint sur le scénario optimisé de consultation du catalogue via Gateway, tandis que le scénario mixte complet reste inférieur à cette cible en raison des écritures, de l’idempotence, de l’audit et des appels interservices. Cet écart est donc documenté et argumenté.
 10.4 Stratégie de tests & couverture
+La stratégie de tests suit une pyramide en trois niveaux : tests unitaires, tests d’intégration et tests bout en bout. L’objectif est de valider les règles métier critiques au niveau le plus bas possible, puis de confirmer l’intégration technique avec les bases de données, les adaptateurs et l’API Gateway.
+
+1. Tests unitaires
+
+ Les tests unitaires ciblent principalement les couches Application et Domain, qui représentent le domaine critique du projet. Ces couches contiennent les règles métier liées à l’inscription, la vérification d’identité, l’authentification MFA, la validation d’offre, l’activation de ligne, l’idempotence des commandes et activations, le paiement de facture, l’exactly-once pratique et l’audit append-only.
+
+La couverture est mesurée uniquement sur les couches Application et Domain. Les adaptateurs d’infrastructure ne sont pas inclus dans cette mesure principale, car ils sont validés par les tests d’intégration.
+
+
+
+
+
+
+
+
+
+
+
+Figure 10.4-1 — Couverture des tests unitaires sur les couches Application et Domain
+
+
+La capture montre l’exécution de pytest avec coverage sur les couches critiques du projet. Le rapport indique une couverture globale de 87 % sur les modules Application et Domain. Cette valeur dépasse la cible de 80 % fixée pour le domaine critique.
+
+2. Tests d’intégration
+
+Les tests d’intégration sont organisés par frontière d’adaptateur plutôt que seulement par cas d’utilisation. Ils vérifient que les services interagissent correctement avec leurs dépendances techniques, notamment la persistance MySQL et les adaptateurs simulés.
+
+Ces tests couvrent les agrégats et mécanismes principaux : clients/MFA, offres, lignes/MSISDN, commandes/activations, factures/paiements et journal d’audit. Ils valident aussi les contraintes d’intégrité comme l’idempotence, l’unicité MSISDN, l’exactly-once des paiements et le caractère append-only de l’audit. Les adaptateurs externes simulés, comme la passerelle de paiement, sont également testés.
+
+Figure 10.4-2 — Exécution des tests d’intégration
+
+
+
+La capture montre l’exécution des tests d’intégration avec pytest. Le résultat indique 7 tests réussis et 1 test ignoré, ce qui confirme que les adaptateurs principaux et les interactions avec la persistance sont validés dans l’environnement de test.
+
+
+3. Tests bout en bout
+
+Le scénario E2E passe par l’API Gateway uniquement (`http://localhost:8080`). Il couvre le parcours critique télécom: inscription ? authentification ? MFA ? consultation des offres ? prise de commande ? activation de ligne ? paiement de facture ? audit par TraceId. Ce scénario est démontré avec la collection Postman officielle et complété par un test E2E automatisé pytest.
+
+Figure 10.4-3 — Exécution du scénario E2E via Postman
+
+
+
+La capture montre l’exécution de la collection Postman CanTelcoX Phase 1 - API Gateway. Les requêtes passent par l’API Gateway et valident les étapes principales du parcours : inscription client, création du challenge MFA, vérification MFA, accès protégé, consultation des offres et création de commande. Le résultat indique 27 tests réussis, 0 échec et 0 erreur, ce qui confirme le bon fonctionnement du scénario E2E via Gateway.
+
 [À compléter — pyramide de tests (unit ? intégration ? E2E), scénarios E2E télécom (inscription ? MFA ? activation ? souscription ? paiement)]
 Couverture mesurée sur le domaine critique : [À compléter] % (cible ? 80 %).
 10.5 Résultats des campagnes de charge
-Scénarios k6/JMeter/Artillery — stress progressif jusqu’au seuil de saturation :
-Scénario de chargeCharge nominaleSeuil de saturationP95UC-04 — Consultation usage[À compléter — …][À compléter — …][À compléter — …]UC-05 — Prise de commande[À compléter — …][À compléter — …][À compléter — …]UC-03 — Activation[À compléter — …][À compléter — …][À compléter — …]UC-02 — Authentification MFA[À compléter — …][À compléter — …][À compléter — …]UC-08 — Facturation[À compléter — …][À compléter — …][À compléter — …][À compléter — insérer les captures des dashboards Grafana (4 Golden Signals : P95/P99, RPS, 4xx/5xx, saturation) et les courbes de charge]
+La section 10.5 présente la campagne de référence, réalisée avant optimisation. Elle sert à établir le comportement initial du système et à identifier le seuil de saturation. Les résultats optimisés sont présentés ensuite aux sections 10.6 et 10.7, puis synthétisés en 10.3.
+Les campagnes de charge ont été exécutées avec Locust via l’API Gateway. Pour chaque scénario, la charge a été augmentée progressivement par paliers afin d’identifier le seuil de saturation.
+Les paliers utilisés sont les suivants :
+- Palier 1 : 25 utilisateurs, spawn rate 5/s — charge faible
+- Palier 2 : 50 utilisateurs, spawn rate 10/s — charge nominale
+- Palier 3 : 100 utilisateurs, spawn rate 20/s — charge élevée
+- Palier 4 : 200 utilisateurs, spawn rate 20/s — stress
+Le seuil de saturation est défini comme le premier palier où la latence P95 dépasse 500 ms, où le taux d’erreurs augmente de façon significative, ou où des timeouts apparaissent. Les résultats détaillés Locust et les captures Grafana sont joints sous le tableau.
+Scénario de chargeCharge nominaleSeuil de saturationP95UC-04 — Consultation usageNon exécuté — UC-04 non implémenté dans la version Phase 1Non mesuréNon mesuréUC-05 — Prise de commandePalier 3 — 100 utilisateurs, spawn rate 20/s; 0% échecPalier 4 — 200 utilisateurs, P95 > 500 ms930 msUC-03 — ActivationPalier 3 — 100 utilisateurs, spawn rate 20/s; 0% échec
+Palier 4 — 200 utilisateurs, P95 > 500 ms810 msUC-02 — Authentification MFAPalier 2 — 50 utilisateurs, spawn rate 10/s; 0% échecPalier 3 — 100 utilisateurs; login P95 > 500 msLogin 520 ms / MFA 450 msUC-08 — FacturationNon exécuté — UC-08 non implémenté dans la version Phase 1Non mesuréNon mesuré
+Figure 10.5-1 — Dashboard Grafana CanTelcoX Golden Signals pendant la campagne de charge.
+La figure présente le dashboard Grafana CanTelcoX Golden Signals utilisé pendant les campagnes de charge. Il couvre les signaux d’observabilité requis : trafic RPS, taux d’erreurs 4xx/5xx, latence P95/P99 et saturation des ressources CPU/RAM par service. Cette vue complète les résultats Locust en montrant l’état interne des services pendant la montée en charge.
+
+
+Figure 10.5-2 — Résultats Locust du palier 1
+
+
+Figure 10.5-3— Résultats Locust du palier 2
+
+Figure 10.5-4— Résultats Locust du palier 3
+
+Figure 10.5-4 — Résultats Locust du palier 4
+
 10.6 Load balancing (N = 1..4) & tolérance aux pannes
-N instancesRPSP95 (ms)ErreursSaturation1[À compléter — …][À compléter — …][À compléter — …][À compléter — …]2[À compléter — …][À compléter — …][À compléter — …][À compléter — …]3[À compléter — …][À compléter — …][À compléter — …][À compléter — …]4[À compléter — …][À compléter — …][À compléter — …][À compléter — …]Tolérance aux pannes (kill d’instance en charge) : [À compléter — maintien de 95 % de disponibilité].
+Cette section constitue la première optimisation après la baseline de 10.5. Elle évalue l’effet de la mise à l’échelle horizontale et du load balancing sur le débit, la latence, les erreurs et la saturation.
+
+Les campagnes de load balancing ont été exécutées avec Locust via l’API Gateway. L’objectif était de comparer le comportement du système avec 1, 2, 3 et 4 instances des services répliqués, puis de vérifier la tolérance aux pannes par l’arrêt manuel d’une instance pendant la charge.
+
+N instancesRPSP95 (ms)ErreursSaturation1345.44850Non observée: P95 < 500 ms, aucun échec2342.42930
+Non observée: P95 < 500 ms, aucun échec3342.391700Non observée: P95 < 500 ms, aucun échec4341.86780Non observée: P95 < 500 ms, aucun échec
+Les résultats obtenus pour N = 1 à N = 4 sont très proches. Le débit reste stable autour de 342 à 345 RPS, avec 0 % d’erreur pour toutes les campagnes. La latence P95 demeure également inférieure à la cible NFR de 500 ms dans tous les cas. Ces résultats montrent que la charge nominale utilisée ne sature pas l’instance unique. Par conséquent, l’ajout d’instances ne produit pas de gain de débit mesurable dans cette campagne. Le load balancing est donc validé principalement comme mécanisme de répartition, de déploiement multi-instance et de tolérance aux pannes, mais le gain de scalabilité horizontale reste limité à cette charge.
+Figure 10.6-1 — Évolution du débit RPS selon le nombre d’instances
+
+Figure 10.6-2 — Évolution de la latence P95 selon le nombre d’instances
+
+
+Figure 10.6-3 — Évolution du taux d’erreurs selon le nombre d’instances
+
+
+Figure 10.6-4 — Saturation observée selon le nombre d’instances
+
+
+10.6.2 Tolérance aux pannes : arrêt d’une instance en charge
+Un test de tolérance aux pannes a été réalisé afin de vérifier le comportement du système lorsqu’une instance applicative est arrêtée pendant une campagne de charge. Pour ce test, le service svc-commandes-activations était déployé avec 2 instances actives derrière le load balancer.
+Pendant la campagne Locust, l’instance projet-svc-commandes-activations-2 a été arrêtée manuellement avec la commande `docker stop`. Le trafic continuait de passer par l’API Gateway et le load balancer devait rediriger les requêtes vers l’instance restante du service svc-commandes-activations.
+Le test a généré 41 509 requêtes au total. Un seul échec a été observé, soit une réponse HTTP 502 sur POST UC-03 activation, probablement au moment exact où l’instance a été arrêtée. La disponibilité observée est donc: Disponibilité = (41 509 ? 1) / 41 509 × 100 = 99,9976 %
+Le résultat dépasse largement la cible de disponibilité de 95 %. Le système conserve donc une disponibilité acceptable malgré la perte d’une instance sur deux pendant la charge.
+
+Figure 10.6-5 — Instances disponibles avant le test de tolérance aux pannes
+La capture montre les services applicatifs disponibles avant le test de failover. Pour le test de tolérance aux pannes, le service svc-commandes-activations est considéré avec 2 instances actives derrière le load balancer. Cette configuration permet de vérifier que le trafic peut continuer à être traité lorsqu’une des deux instances devient indisponible.
+
+
+Figure 10.6-6 — Arrêt manuel d’une instance pendant la charge
+La capture montre l’identification des instances du service svc-commandes-activations, puis l’arrêt manuel de l’instance projet-svc-commandes-activations-2 avec la commande docker stop. Cette opération est effectuée pendant que Locust génère du trafic afin de simuler la panne d’une instance. Après l’arrêt, le load balancer doit rediriger les requêtes vers l’instance restante.
+
+
+Figure 10.6-7 — Résultat Locust après arrêt d’une instance
+La capture Locust présente les résultats de la campagne de charge pendant le test de failover. Le système a traité 41 509 requêtes avec un seul échec, correspondant à une requête POST UC-03 activation. Le débit agrégé atteint 346,55 RPS et le taux d’échec reste quasi nul. La disponibilité calculée est de 99,9976 %, ce qui confirme que le système respecte la cible de 95 % malgré l’arrêt d’une instance.
+
+
+
 10.7 Caching (on / off)
-EndpointP95 sans cacheP95 avec cacheCharge DBGain[À compléter — catalogue][À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — usage][À compléter — …][À compléter — …][À compléter — …][À compléter — …]10.8 Appels directs vs via Gateway
-TrajetP95 (ms)ErreursTraçabilitéDirect[À compléter — …][À compléter — …][À compléter — …]Via Gateway[À compléter — …][À compléter — …][À compléter — …]11. Risques et dette technique
+Cette section constitue la seconde optimisation après la baseline: le cache Redis/L1 est utilisé pour réduire les lectures répétées sur le catalogue et améliorer la latence des endpoints de consultation.
+
+Le cache Redis/L1 a été appliqué à l’endpoint de consultation du catalogue des offres, soit GET /v1/offers. L’objectif était de réduire les lectures répétées vers la base MySQL et de stabiliser la latence pour un endpoint fortement sollicité pendant les campagnes Locust.
+
+Les résultats montrent une amélioration mesurable: le P95 de GET /v1/offers passe de 81 ms sans cache à 71 ms avec cache, soit un gain d’environ 12,3 %. Le P95 agrégé passe également de 89 ms à 84 ms, soit un gain d’environ 5,6 %. Le gain reste modéré, car le catalogue de démonstration contient peu d’offres et la base MySQL répond déjà rapidement. L’intérêt principal du cache est donc de réduire la charge de lecture répétée sur la base de données et de limiter la dégradation de latence sous charge.
+
+Le scénario UC-04 -Consultation d’usage n’étant pas implémenté dans la version Phase 1, aucun test de cache n’a été exécuté sur l’usage.
+EndpointP95 sans cacheP95 avec cacheCharge DBGainCatalogue /v1/offers81 ms71 msRéduite après MISS initial; HIT Redis/L1 pendant TTL12.3%UsageHors périmètre UC-04Hors périmètre UC-04Non mesuréN/A
+
+Figure 10.7-1 — Résultat Locust avec cache activé sur le catalogue
+
+La capture montre la campagne Locust avec cache activé. Le système traite 41 526 requêtes, avec 0 échec, un débit agrégé de 347,18 RPS et un P95 agrégé de 84 ms. Pour GET /v1/offers, le débit atteint 328,92 RPS avec un P95 de 71 ms.
+
+
+
+Figure 10.7-2 — Résultat Locust avec cache désactivé sur le catalogue
+
+La capture présente la campagne Locust exécutée avec le cache désactivé pour l’endpoint GET /v1/offers. Ce scénario sert de référence avant optimisation. Le P95 mesuré pour la consultation du catalogue est de 81 ms, avec un P95 agrégé de 89 ms
+
+
+
+
+Figure 10.7-3 — Vérification du cache HIT sur GET /v1/offers
+
+Après redémarrage de svc-catalogue-offres et suppression de la clé Redis catalogue:offers:active, le premier appel à GET /v1/offers retourne X-Cache: MISS. Le second appel identique retourne X-Cache: HIT. Cela confirme que la consultation du catalogue est servie depuis le cache Redis/L1 après le premier accès, pendant la durée du TTL configuré.
+
+
+
+
+Le principal risque du cache est de servir des données périmées lorsque le catalogue est modifié. Pour limiter ce risque, le cache utilise un TTL et peut être invalidé lors des mises à jour du catalogue. En Phase 1, l’invalidation est simple : suppression de la clé Redis catalogue:offers:active au redémarrage ou lors d’une modification catalogue.
+
+
+
+10.8 Appels directs vs via Gateway
+TrajetP95 (ms)ErreursTraçabilitéDirect8 ms0 %
+TraceId envoyé directement à svc-catalogue-offres:5000. Pas de point d’entrée central et pas de logs Gateway.Via Gateway260 ms0 %TraceId propagé via NGINX. Point d’entrée unique, logs Gateway, conservation des headers Authorization / TraceId.
+La comparaison utilise le même endpoint GET /v1/offers afin d’isoler l’impact de l’API Gateway. L’appel direct vers svc-catalogue-offres:5000 atteint 1357 RPS avec un P95 de 8 ms et 0 % d’échec. L’appel via NGINX Gateway optimisé atteint 668,77 RPS avec un P95 de 260 ms et 0 % d’échec.
+
+L’appel direct est donc plus rapide, ce qui est normal puisqu’il contourne le routage Gateway et les traitements transverses. Cependant, l’appel via Gateway reste sous la cible NFR de 500 ms au P95 pour ce scénario. La Gateway apporte aussi les mécanismes requis pour la démonstration officielle: point d’entrée unique, routage vers les microservices, propagation des en-têtes transverses, journalisation centralisée et load balancing.
+
+Figure 10.8-1 — Test Locust en appel direct vers svc-catalogue-offres
+
+La capture montre le test Locust exécuté directement contre http://svc-catalogue-offres:5000 sur l’endpoint GET /v1/offers. Ce trajet contourne l’API Gateway. Le test atteint 1357 RPS, avec un P95 de 8 ms et 0 % d’échec.
+
+
+
+
+
+
+Figure 10.8-2 — Test Locust via NGINX Gateway
+
+La capture montre le test Locust exécuté via http://api-gateway sur le même endpoint GET /v1/offers. Ce trajet passe par NGINX, qui agit comme point d’entrée unique, route la requête vers le service catalogue et propage les en-têtes transverses. Le test atteint 668,77 RPS, avec un P95 de 260 ms et 0 % d’échec.
+
+
+Validation du jeton et MFA simulée
+
+NGINX open source est utilisé comme API Gateway pour le routage, la journalisation, le load balancing et la propagation des en-têtes TraceId, Authorization et Idempotency-Key. Il ne valide pas directement les jetons, car NGINX open source ne supporte pas nativement la validation OAuth2/OIDC/JWT.
+
+Dans cette Phase 1, la validation du jeton est déléguée aux services applicatifs. Le cas d’utilisation UC-02 — Authentification MFA utilise un fournisseur MFA simulé: le service d’identité crée un challenge OTP, valide le code MFA, puis émet un jeton de session de développement de type Bearer dev-session Ce jeton est ensuite transmis dans le header Authorization.
+
+Ce choix permet de démontrer le flux d’authentification MFA et la protection des endpoints sans introduire un fournisseur OAuth2/OIDC complet dans le périmètre de la Phase 1. Une amélioration future consisterait à déplacer la validation du jeton au niveau de la Gateway avec NGINX njs, NGINX Plus ou une Gateway spécialisée compatible OAuth2/OIDC.
+
+Justification du choix de NGINX
+
+NGINX a été retenu comme API Gateway pour sa simplicité, sa compatibilité avec Docker Compose et sa capacité à fournir rapidement un point d’entrée unique vers les microservices. Il permet de centraliser le routage /v1/..., de conserver les en-têtes transverses, de produire des logs d’accès et de répartir la charge entre plusieurs instances. Le compromis assumé est que la validation OAuth2/OIDC complète n’est pas réalisée par NGINX dans cette phase; elle est déléguée aux services applicatifs.
+
+
+11. Risques et dette technique
 Objectif Arc42 — Identifier les risques d’architecture connus et la dette technique, avec leurs mesures d’atténuation.
-Risque / detteImpactProbabilitéAtténuation[À compléter — ex. point unique de défaillance Gateway][À compléter — …][À compléter — …][À compléter — …][À compléter — ex. données périmées en cache][À compléter — …][À compléter — …][À compléter — invalidation…][À compléter — …][À compléter — …][À compléter — …][À compléter — …]12. Glossaire
+Risque / detteImpactProbabilitéAtténuationPoint unique de défaillance de l’API Gateway NGINX
+Si la Gateway tombe, les APIs publiques /v1 deviennent indisponibles même si les services internes fonctionnent.MoyenneHealthcheck /health, configuration NGINX simple et versionnée, redémarrage Docker Compose. En Phase 2: plusieurs instances Gateway derrière un load balancer externe.MySQL unique dans Docker ComposePerte de disponibilité si le conteneur MySQL tombe ; risque de perte de données si les volumes ne sont pas sauvegardés.MoyenneVolume Docker persistant, scripts SQL reproductibles, tests d’intégration. En Phase 2: sauvegardes automatisées, réplication ou service DB managé.Données périmées dans le cache Redis catalogueLes offres retournées par GET /v1/offers peuvent rester périmées pendant la durée du TTL.FaibleTTL court via OFFER_CACHE_TTL_SECONDS. Catalogue principalement read-only en Phase 1. En Phase 2: invalidation explicite lors des mises à jour catalogue.Références inter-services non garanties par FK physiquesLes références comme customer_id, offer_id ou line_id peuvent devenir incohérentes si les services évoluent sans coordination.MoyenneValidation applicative par appels REST avant commandes critiques, tests E2E, contrats OpenAPI. En Phase 2: tests de contrats et événements d’intégrité.Idempotence basée sur clés uniques localesProtège contre les doubles soumissions dans un service, mais ne couvre pas tous les scénarios distribués complexes.MoyenneContraintes uniques sur idempotency_key, validation du request_hash, tests d’intégration. En Phase 2: patron Outbox, saga ou orchestration robuste.
+
+Exactly-once facturation limité à des garde-fous pratiquesRisque résiduel si un paiement externe réel réussit mais que la persistance locale échoue.MoyenneTransaction DB locale, idempotency_key, unicité du paiement par facture, passerelle de paiement simulée. En Phase 2: webhooks PSP idempotents et journal transactionnel.Audit append-only dépendant de MySQLL’append-only est protégé par triggers, mais reste dans la même infrastructure MySQL de démonstration.Faible à moyenneTriggers no_update / no_delete, tests d’intégration append-only, logs structurés. En Phase 2: stockage WORM, export immuable ou infrastructure audit séparée.Sécurité simplifiée pour la démonstrationTokens, MFA et secrets sont adaptés à la Phase 1, mais pas à une production réelle.Moyenne.env.example sans secrets réels, .env ignoré, MFA simulée, endpoints protégés par Bearer token. En Phase 2: OIDC, TLS, rotation des secrets et vault.Tests de charge dépendants de la machine localeLes résultats Locust peuvent varier selon CPU/RAM, Docker Desktop et la machine utilisée.MoyenneRapports Locust conservés comme preuves, scénarios documentés et reproductibles. En Phase 2 : environnement de benchmark fixe.12. Glossaire
 Objectif Arc42 — Définir le langage ubiquitaire (DDD) et les acronymes pour une compréhension commune.
 Repères de l’énoncé
 Tâches de l’énoncé : 1.2 ubiquitous language.
@@ -501,17 +760,64 @@ Livrables attendus :
 • Glossaire métier (langage ubiquitaire) + acronymes.
 Critères d’acceptation (à cocher)
 ?  Glossaire validé.
-
 12.1 Langage métier
-TermeDéfinitionBounded context[À compléter — ex. MSISDN][À compléter — identifiant de ligne mobile]Lignes & Services[À compléter — ex. Forfait][À compléter — …]Catalogue & Offres[À compléter — …][À compléter — …][À compléter — …]12.2 Acronymes
-AcronymeSignificationBSSBusiness Support SystemCRTCConseil de la radiodiffusion et des télécommunications canadiennesHLR/HSSHome Location Register / Home Subscriber ServerMSISDNMobile Station International Subscriber Directory NumberMFA / OTPAuthentification multifacteur / mot de passe à usage uniqueNFRExigence non fonctionnelleADRArchitecture Decision RecordTMFTM Forum (Open APIs)[À compléter — …][À compléter — …]Annexe A — Contrats d’API & catalogue d’endpoints
+TermeDéfinitionBounded contextAbonnéClient individuel ou PME utilisant les services mobiles CanTelcoX.Clients & IdentitéClientProfil commercial et d’identité associé à une personne ou organisation.Clients & IdentitéIdentité vérifiéeÉtat indiquant que les informations d’identité du client ont passé les contrôles de validation Phase 1.Clients & IdentitéRisque clientNiveau de risque simplifié utilisé pour bloquer ou accepter certaines opérations sensibles.Clients & IdentitéMFA ChallengeDéfi d’authentification créé après login et validé par OTP.Clients & IdentitéSession tokenJeton retourné après MFA et utilisé comme Bearer token sur les endpoints protégés.Clients & IdentitéForfaitOffre mobile commercialisable, avec prix mensuel, volume de données et statut actif/inactif.Catalogue & OffresOffre activeOffre disponible pour commande ou activation.Catalogue & OffresCatalogueEnsemble des forfaits et options publiés par l’opérateur.Catalogue & OffresLigne mobileService télécom associé à un client, un MSISDN, une SIM/eSIM et un forfait.Lignes & ServicesMSISDNNuméro public de ligne mobile, unique dans le système.Lignes & ServicesSIMCarte SIM physique associée à une ligne mobile.Lignes & ServiceseSIMProfil SIM numérique associé à une ligne mobile.Lignes & ServicesIMSIIdentifiant réseau de l’abonné mobile utilisé pour le provisionnement.Lignes & ServicesSUPIIdentifiant permanent du souscripteur dans le contexte 5G/free5GC.Lignes & ServicesProvisionnement réseauAction de créer ou activer la ligne dans le simulateur réseau HLR/HSS/UDM.Lignes & ServicesActivationCommande idempotente qui valide le client et l’offre, crée/provisionne la ligne et produit un état actif ou échoué.Commandes & ActivationsCommandeDemande commerciale de souscription ou changement d’offre. En Phase 1, NEW_PLAN est implémenté.Commandes & ActivationsIdempotency-KeyClé fournie par le client API pour rejouer une commande sans créer de doublon.Commandes & Activations / Usage & FacturationRejeu idempotentRéponse retournée depuis une commande déjà traitée avec la même clé et le même contenu.Commandes & Activations / Usage & FacturationFactureDocument de facturation associé à un client, une période et un montant dû.Usage & FacturationPaiementCommande idempotente visant à régler une facture.Usage & FacturationPaiement acceptéPaiement validé par la passerelle simulée et persisté localement.Usage & FacturationExactly-once pratiqueEnsemble de garde-fous locaux évitant les doubles écritures critiques, notamment contraintes uniques et transactions.Usage & FacturationÉvénement d’auditEnregistrement append-only décrivant une action métier ou technique traçable.Conformité & AuditTraceIdIdentifiant de corrélation utilisé pour suivre une requête entre gateway, services et audit.Transverse / ObservabilitéJournal append-onlyJournal où les événements peuvent être ajoutés mais pas modifiés ni supprimés.Conformité & AuditGateway APIPoint d’entrée public NGINX exposant les routes /v1.API Gateway / TransverseHealthcheckEndpoint ou commande permettant de vérifier l’état opérationnel d’un service.ObservabilitéGolden SignalsLatence, trafic, erreurs et saturation utilisées pour observer le comportement du système.ObservabilitéSeed dataDonnées initiales chargées automatiquement au démarrage de la base, par exemple les forfaits de démonstration.Persistance / Catalogue12.2 Acronymes
+AcronymeSignificationBSSBusiness Support SystemCRTCConseil de la radiodiffusion et des télécommunications canadiennesHLR/HSSHome Location Register / Home Subscriber ServerMSISDNMobile Station International Subscriber Directory NumberMFA / OTPAuthentification multifacteur / mot de passe à usage uniqueNFRExigence non fonctionnelleADRArchitecture Decision RecordTMFTM Forum (Open APIs)APIApplication Programming InterfaceCIContinuous IntegrationCDContinuous Deployment / Continuous DeliveryDAOData Access ObjectDBDatabaseDDDDomain-Driven DesignEREntity-RelationshipUDMUnified Data ManagementIMSIInternational Mobile Subscriber IdentityPIIPersonally Identifiable InformationPIPEDA / LPRPDEPersonal Information Protection and Electronic Documents Act / Loi sur la protection des renseignements personnels et les documents électroniquesLaw 25 / Loi 25Loi québécoise modernisant la protection des renseignements personnelsRESTRepresentational State TransferSLAService Level AgreementSME / PMESmall and Medium Enterprise / Petite et moyenne entrepriseSIMSubscriber Identity ModuleeSIMEmbedded SIMSUPISubscription Permanent IdentifierUCUse CaseUMLUnified Modeling LanguageVMVirtual MachineWORMWrite Once Read ManyAnnexe A — Contrats d’API & catalogue d’endpoints
 Référez le fichier OpenAPI/Swagger publié et la collection Postman (chemins dans le dépôt).
-Méthode + Route (/v1)UCServiceAuth / MFA[À compléter — POST /v1/customers]UC-01[À compléter — …][À compléter — …][À compléter — POST /v1/auth/mfa]UC-02[À compléter — …]MFA[À compléter — POST /v1/lines/{id}/activate]UC-03[À compléter — …]MFA[À compléter — GET /v1/usage]UC-04[À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — …][À compléter — …]Liens : Swagger = [À compléter] · Postman = [À compléter]
+Méthode + Route (/v1)UCServiceAuth / MFAPOST /v1/customers/registerUC-01 — Inscription & vérification d’identitésvc-clients-identitePublic, TraceId; MFA non requisePOST /v1/auth/loginUC-02 — Authentification & MFAsvc-clients-identitePublic; crée un challenge MFAPOST /v1/auth/mfa/verifyUC-02 — Authentification & MFAsvc-clients-identiteVérifie le code MFA; retourne un sessionTokenGET /v1/customers/{customerId}Support UC-03 / UC-05 / UC-06 — validation clientsvc-clients-identiteBearer token obtenu après MFAGET /v1/offers
+Support UC-05 — consultation des offres disponiblessvc-catalogue-offresBearer token obtenu après MFAGET /v1/offers/{offerId}Support UC-03 / UC-05 — validation de l’offresvc-catalogue-offresBearer token obtenu après MFAPOST /v1/ordersUC-05 — Prise de commande / souscription à un forfaitsvc-commandes-activationsBearer token + Idempotency-KeyPOST /v1/activationsUC-03 — Activation d’une ligne mobilesvc-commandes-activationsBearer token + Idempotency-KeyGET /v1/lines/{lineId}Support UC-03 — consultation de l’état de lignesvc-lignes-servicesBearer token obtenu après MFAGET /v1/invoices?customerId={customerId}Support UC-04 / UC-06 — consultation des facturessvc-usage-facturationBearer token obtenu après MFAGET /v1/invoices/{invoiceId}Support UC-04 / UC-06 — détail de facturesvc-usage-facturationBearer token obtenu après MFAPOST /v1/invoices/{invoiceId}/paymentsUC-06 — Paiement de facture mobilesvc-usage-facturationBearer token + Idempotency-KeyGET /v1/audit-events?traceId={traceId}Support conformité & audit — traçabilité réglementairesvc-conformite-auditBearer token obtenu après MFAPOST /v1/audit-eventsSupport conformité & audit — journal append-onlysvc-conformite-auditBearer token obtenu après MFASwagger/OpenAPI = docs/api/openapi.yaml
+Swagger UI local = http://localhost:8081
+Postman = docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json
+Base URL gateway = http://localhost:8080
 Annexe B — Schéma de persistance
-Modèle logique (ER/UML) par service, choix ORM/DAO, contraintes, migrations et données seed.
-[À compléter — insérer le(s) diagramme(s) ER/UML par service]
-ÉlémentDétailContraintes d’intégrité[À compléter — unicité MSISDN, FK profils ? lignes, index]Migrations[À compléter — outil, reproductibilité]Données seed[À compléter — catalogue de forfaits, abonnés et lignes de test]Tests d’intégration[À compléter — sur DB conteneurisée]Annexe C — CI/CD, conteneurisation & exploitation
-ÉlémentDétailDockerfiles[À compléter — multi-stage par service]docker-compose.yml[À compléter — services + DB + Prometheus + Grafana + Gateway + cache + seed]Healthchecks/health par servicePipeline CI[À compléter — lint ? build ? tests (unit/int/E2E) ? artefacts ; < 10 min ; badge]Job CD (VM)[À compléter — script de déploiement, rollback simple]Runbook & guide de démo[À compléter — opérations, observabilité, gestion des pannes ; reproductibilité < 30 min]Annexe D — Traçabilité, Définition de Fini & auto-évaluation
+La persistance est organisée par service et par contexte métier. Chaque service possède son propre schéma logique et accède uniquement aux tables de son bounded context. En Phase 1, les bases sont initialisées automatiquement par les scripts SQL versionnés sous infra/mysql/init, ce qui permet de recréer l’environnement de manière reproductible avec Docker Compose.
+Les références entre services sont logiques et non modélisées par des clés étrangères inter-bases. Par exemple, une commande peut contenir un customer_id ou un offer_id, mais l’intégrité entre services est validée par appels applicatifs plutôt que par contrainte SQL inter-schémas. Ce choix respecte la séparation des responsabilités entre microservices.
+
+Modèle logique par service
+ServiceBase / schémaTables principalesRôlesvc-clients-identiteclients_identitecustomers, mfa_challengesProfils clients, identité, statut, MFAsvc-conformite-auditconformite_auditaudit_eventsJournal append-only pour conformité et preuvessvc-catalogue-offrescatalogue_offresoffersCatalogue des forfaits et offressvc-lignes-serviceslignes_servicesservice_linesLignes mobiles, MSISDN, SIM/eSIM, IMSI, état HLRsvc-commandes-activationscommandes_activationsorders, activationsCommandes UC-05, activations UC-03, idempotencesvc-usage-facturationusage_facturationinvoices, paymentsFactures, paiements, exactly-once pratique
+
+
+
+
+
+
+
+
+
+
+
+Figure B-1 — Schéma ER logique global de la persistance CanTelcoX Phase 1.
+Ce diagramme regroupe les schémas MySQL détenus par chaque service et montre les références logiques entre contextes bornés. Les liens inter-services ne sont pas des clés étrangères physiques; ils sont validés par API REST et adapters.
+
+
+
+Figure B-2 — Schéma ER du service Clients & Identité.
+Ce diagramme présente les tables `customers` et `mfa_challenges`, incluant l’unicité de l’adresse courriel, la relation physique MFA-client, et les champs nécessaires à l’identité, au risque de connexion et au cycle MFA.
+
+
+
+Figure B-3 — Schéma ER du service Conformité & Audit.
+Ce diagramme présente la table `audit_events`, les index de recherche par client, trace et type d’événement, ainsi que les déclencheurs SQL empêchant toute modification ou suppression afin de garantir un journal append-only.
+
+
+Figure B-4 — Schéma ER du service Catalogue & Offres.
+Ce diagramme présente la table `offers`, utilisée pour publier les forfaits actifs et inactifs. Les données seed incluent les offres de démonstration utilisées par les parcours UC-03 et UC-05
+.
+
+Figure B-5 — Schéma ER du service Lignes & Services.
+Ce diagramme présente la table `service_lines`, responsable de l’état des lignes mobiles, MSISDN, SIM/eSIM, IMSI/SUPI et statut de provisionnement HLR. Les contraintes d’unicité protègent contre les doublons de numéro, SIM et IMSI.
+
+Figure B-6 — Schéma ER du service Commandes & Activations.
+Ce diagramme présente les tables `orders` et `activations`, utilisées pour UC-05 et UC-03. Les clés d’idempotence uniques empêchent les doubles créations lors des rejouements de commandes ou d’activations.
+
+Figure B-7 — Schéma ER du service Usage & Facturation.
+Ce diagramme présente les tables `invoices` et `payments`, incluant les contraintes d’idempotence des paiements et l’unicité pratique d’un paiement réussi par facture afin de limiter les écritures en double.
+
+
+ÉlémentDétailContraintes d’intégrité
+Les principales contraintes sont: customers.email unique; mfa_challenges.customer_id lié au cclient;service_lines.msisdn, sim_identifier et imsi uniques; activations.idempotency_key unique; orders.idempotency_key unique; payments.idempotency_key unique; contrainte sur payments (invoice_id, status) pour éviter deux paiements réussis sur la même facture. Des index sont aussi prévus sur les champs de recherche fréquents comme customer_id, status et trace_id.MigrationsAucun outil ORM/migration lourd n’est utilisé en Phase 1. Les migrations sont reproductibles par scripts SQL versionnés sous infra/mysql/init/*.sql. Ces scripts sont exécutés automatiquement par le conteneur MySQL au premier démarrage du volume. Le bootstrap Docker Compose crée également les bases/schémas nécessaires par serviceChoix ORM/DAOAucun ORM n’est utilisé. L’accès aux données se fait par DAO/repositories MySQL avec PyMySQL, dans les adaptateurs sortants de persistance. Les principaux repositories sont: MysqlCustomerRepository, MysqlMfaRepository, MysqlOfferRepository, MysqlLineRepository, MysqlActivationRepository, MysqlUsageBillingRepository et MysqlAuditRepositoryDonnées seed
+Les offres sont seedées dans infra/mysql/init/030-svc-catalogue-offres.sql, notamment forfait-5g-20gb, forfait-5g-50gb, forfait-sme-100gb et forfait-retired-10gb. Les clients de démonstration sont créés via UC-01. Les factures de démonstration UC-06 sont créées de manière déterministe par le service de facturation lors de la consultation des factures pour un client valide.Tests d’intégrationLes tests d’intégration utilisent la base MySQL conteneurisée et sont regroupés dans tests/integration/test_mysql_repository_boundaries.py. Ils valident la persistance clients/MFA, la lecture des offres seedées, l’unicité MSISDN/SIM/IMSI, l’idempotence des commandes et activations, l’exactly-once pratique des paiements et le caractère append-only de l’audit. Commande: python -m pytest -p no:cacheprovider tests/integration après docker compose up -d.Annexe C — CI/CD, conteneurisation & exploitation
+ÉlémentDétailDockerfilesDes Dockerfiles multi-stage sont fournis pour les 6 services sous services/svc-*/Dockerfile. Chaque image utilise un stage builder pour installer les dépendances Python, puis un stage runtime slim contenant le code applicatif et Gunicorn.docker-compose.ymlLe fichier docker-compose.yml lance toute la stack Phase 1: les 6 services Flask, MySQL 8.4, les scripts d’initialisation/seed sous infra/mysql/init, Redis pour le cache, NGINX comme API Gateway, Swagger UI, Prometheus, Grafana et Locust via le profil optionnel load-test. Commande de démarrage : cp .env.example .env, puis docker compose up -d --build.HealthchecksChaque service Flask expose un endpoint /health, vérifié par Docker Compose. MySQL et Redis possèdent aussi leurs healthchecks. L’API Gateway expose également /health et possède un healthcheck Compose sur http://127.0.0.1/health.Pipeline CILa CI est basée sur GitHub Actions avec un runner ubuntu-latest, via le workflow .github/workflows/phase1-ci.yml. Les étapes sont: installation de Python 3.12, lint avec compileall et ruff, validation des fichiers Postman JSON, validation docker compose config, tests unitaires, build Docker, démarrage Compose, tests d’intégration, test E2E via Gateway et publication des artefacts JUnit/logs/config. Le timeout est fixé à 10 minutes. Le badge CI est inclus dans README.md.Job CD (VM)Le déploiement cible un environnement Docker propre, équivalent à une VM fraîche. Le script principal est scripts/deploy-vm.sh deploy; un équivalent Windows local est fourni avec scripts/deploy-vm.ps1. Le script crée .env s’il est absent, valide la configuration Compose, construit les images, lance docker compose up -d et attend les healthchecks. Un rollback simple est disponible avec scripts/deploy-vm.sh rollback, qui revient à la révision Git précédente enregistrée dans .deploy/previous_revision. Un workflow manuel optionnel est fourni dans .github/workflows/deploy-vm.yml.Runbook & guide de démoLe runbook docs/runbooks/deploiement-vm.md documente les prérequis VM/Docker, le démarrage reproductible, les commandes Windows/Linux, le déploiement en une commande, le rollback, la consultation du statut et des logs, le reset des volumes, la CI, le CD manuel et les preuves à capturer. La reproductibilité visée est de moins de 30 minutes sur un environnement Docker propre.Annexe D — Traçabilité, Définition de Fini & auto-évaluation
 D.1 Matrice de traçabilité (livrables & critères d’acceptation)
 Cochez chaque case (?) lorsque le livrable est produit et le critère d’acceptation satisfait ; indiquez la preuve (figure, section ou chemin dans le dépôt). « Empl. » renvoie à la section du présent document.
 TâcheLivrables ? empl.Critères d’acceptation ? empl.PreuveFait1) Analyse métier & DDD1.1 UC Must§1.1, §1.2§1.2 — ? 5 UC validés[…]?  Livrable

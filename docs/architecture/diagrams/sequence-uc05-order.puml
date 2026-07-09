@@ -1,0 +1,83 @@
+@startuml
+title UC-05 - Prise de commande (implementation Phase 1)
+
+actor "Abonne / PME / agent" as User
+participant "API Gateway" as Gateway
+participant "svc-commandes-activations\nPOST /v1/orders" as Orders
+database "DB commandes_activations\norders" as OrderDb
+participant "svc-clients-identite" as Customers
+participant "svc-catalogue-offres" as Offers
+participant "svc-conformite-audit" as Audit
+
+User -> Gateway: POST /v1/orders\nIdempotency-Key, TraceId\ncustomerId, offerId,\norderType, quantity, lineId?
+Gateway -> Orders: Forward request
+
+alt Idempotency-Key missing
+  Orders --> Gateway: 400 missing_idempotency_key
+  Gateway --> User: 400
+else Idempotency-Key already used
+  Orders -> OrderDb: find_order_by_idempotency_key(key)
+  alt Same payload hash
+    OrderDb --> Orders: stored response
+    Orders --> Gateway: 201 stored order\nIdempotency-Replayed: true
+    Gateway --> User: 201 replay
+  else Different payload hash
+    Orders --> Gateway: 409 idempotency_key_conflict
+    Gateway --> User: 409
+  end
+else New order command
+  Orders -> OrderDb: find_order_by_idempotency_key(key)
+  OrderDb --> Orders: none
+  Orders -> Audit: ORDER_REQUESTED
+
+  Orders -> Customers: GET /v1/customers/{customerId}
+  Customers --> Orders: status, identityStatus, riskLevel
+
+  alt Customer inactive, unverified, missing, or high risk
+    Orders -> Audit: ORDER_ELIGIBILITY_FAILED\nor ORDER_BLOCKED_RISK
+    Orders -> Audit: ORDER_REJECTED
+    Orders --> Gateway: 403/404/409 normalized error
+    Gateway --> User: error
+  else Customer eligible
+    Orders -> Audit: ORDER_CUSTOMER_VALIDATED
+    Orders -> Audit: ORDER_RISK_CHECKED
+
+    Orders -> Offers: GET /v1/offers/{offerId}
+    Offers --> Orders: status, monthlyPrice, currency
+
+    alt Offer missing or inactive
+      Orders -> Audit: ORDER_REJECTED
+      Orders --> Gateway: 404/409 normalized error
+      Gateway --> User: error
+    else Offer active
+      Orders -> Audit: ORDER_OFFER_VALIDATED
+
+      alt CHANGE_PLAN or ADD_OPTION without lineId
+        Orders -> Audit: ORDER_COMPATIBILITY_FAILED
+        Orders -> Audit: ORDER_REJECTED
+        Orders --> Gateway: 409 order_incompatible
+        Gateway --> User: 409
+      else CHANGE_PLAN or ADD_OPTION with lineId
+        Orders -> Audit: ORDER_COMPATIBILITY_FAILED\nphase1_not_implemented
+        Orders -> Audit: ORDER_REJECTED
+        Orders --> Gateway: 501 order_type_not_implemented
+        Gateway --> User: 501
+      else NEW_PLAN
+        Orders -> Orders: calculate totalAmount\nmonthlyPrice * quantity
+        Orders -> OrderDb: create order\nstatus=ACCEPTED\norchestrationStatus=READY_FOR_ACTIVATION\nconfirmationStatus=SIMULATED_SENT
+        Orders -> Audit: ORDER_ACCEPTED
+        Orders -> Audit: ORDER_CONFIRMATION_SIMULATED
+        Orders --> Gateway: 201 order ACCEPTED
+        Gateway --> User: 201 order ACCEPTED
+      end
+    end
+  end
+end
+
+note over Orders
+Phase 1: UC-05 creates and stores the order.
+It does not provision the line directly.
+Line activation remains UC-03.
+end note
+
+@enduml

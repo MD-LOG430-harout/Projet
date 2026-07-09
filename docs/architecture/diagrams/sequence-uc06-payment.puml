@@ -1,0 +1,64 @@
+@startuml
+title UC-06 - Paiement de facture (implementation Phase 1)
+
+actor "Abonne / PME" as User
+participant "API Gateway" as Gateway
+participant "svc-usage-facturation\nPOST /v1/invoices/{invoice_id}/payments" as Billing
+database "DB usage_facturation\ninvoices, payments" as BillingDb
+participant "Passerelle de paiement\nsimulee" as PaymentGateway
+participant "svc-conformite-audit" as Audit
+
+User -> Gateway: POST /v1/invoices/{invoice_id}/payments\nIdempotency-Key, TraceId\ncustomerId, SIMULATED_CARD,\namount, CAD
+Gateway -> Billing: Forward request
+
+alt Idempotency-Key missing
+  Billing --> Gateway: 400 missing_idempotency_key
+  Gateway --> User: 400
+else Idempotency-Key already used
+  Billing -> BillingDb: find_payment_by_idempotency_key(key)
+  alt Same payload hash
+    BillingDb --> Billing: stored payment response
+    Billing --> Gateway: 201 stored payment\nIdempotency-Replayed: true
+    Gateway --> User: 201 replay
+  else Different payload hash
+    Billing --> Gateway: 409 idempotency_key_conflict
+    Gateway --> User: 409
+  end
+else New payment command
+  Billing -> BillingDb: find_payment_by_idempotency_key(key)
+  BillingDb --> Billing: none
+  Billing -> Billing: validate customerId,\npaymentMethod, amount, currency
+
+  Billing -> BillingDb: get_invoice(invoice_id)
+  BillingDb --> Billing: invoice
+
+  alt Invoice missing, wrong customer, paid, not OPEN, amount/currency mismatch
+    Billing --> Gateway: 404/409 normalized error
+    Gateway --> User: error
+  else Invoice payable
+    Billing -> Audit: PAYMENT_REQUESTED
+    Billing -> PaymentGateway: charge(paymentId, invoiceId,\ncustomerId, amount, currency,\npaymentMethod)
+
+    alt Gateway unavailable / timeout / simulated failure
+      PaymentGateway --> Billing: exception
+      Billing -> Audit: PAYMENT_FAILED
+      Billing --> Gateway: 503 payment_gateway_unavailable
+      Gateway --> User: 503
+    else Gateway accepts payment
+      PaymentGateway --> Billing: gatewayTransactionId,\nstatus=ACCEPTED
+      Billing -> BillingDb: insert payment ACCEPTED\nmark invoice PAID
+      Billing -> Audit: PAYMENT_ACCEPTED
+      Billing -> Audit: INVOICE_PAID
+      Billing --> Gateway: 201 payment ACCEPTED\ninvoiceStatus=PAID
+      Gateway --> User: 201 payment confirmation
+    end
+  end
+end
+
+note over Billing
+Phase 1 supports full payment only.
+The amount must match invoice.amount_due.
+Partial payment and pending reconciliation are future work.
+end note
+
+@enduml

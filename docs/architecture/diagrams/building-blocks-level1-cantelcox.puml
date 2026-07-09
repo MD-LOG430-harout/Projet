@@ -1,0 +1,143 @@
+@startuml
+title Vue des blocs de construction - Niveau 1\nDecomposition en services CanTelcoX Phase 1
+
+left to right direction
+
+skinparam shadowing false
+skinparam linetype ortho
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam database {
+  BorderColor #64748B
+  BackgroundColor #F8FAFC
+}
+skinparam actor {
+  BorderColor #64748B
+}
+skinparam ArrowColor #334155
+skinparam defaultFontName Arial
+skinparam defaultFontSize 11
+
+' =========================
+' Acteurs
+' =========================
+actor "Abonne\nparticulier / PME" as Subscriber
+actor "Back-office /\noperateur" as Backoffice
+actor "Regulateur /\nauditeur" as Regulator
+actor "Equipe exploitation\n/ DevOps-SRE" as Ops
+
+' =========================
+' Services externes ou simulateurs Phase 1
+' =========================
+rectangle "Passerelle de paiement\nsimulee" as PAY
+rectangle "CDR / Mediation\nsimules\nlimite Phase 1" as CDR
+rectangle "HLR / HSS / UDM\nfree5GC ou mock" as HLR
+rectangle "Portabilite MSISDN\nsimulee dans Phase 1" as PORT
+rectangle "KYC / scoring\nsimule dans Phase 1" as KYC
+rectangle "OTP / MFA\nsimule dans Phase 1" as MFA
+
+' =========================
+' Plateforme CanTelcoX
+' =========================
+rectangle "CanTelcoX\nPlateforme BSS" as BSS {
+  rectangle "API Gateway / Reverse Proxy\nNGINX\nHTTP(S)/JSON - /v1/*" as GW #EAF2FF
+
+  rectangle "svc-clients-identite\nClients & Identite" as CI #DBEAFE
+  rectangle "svc-catalogue-offres\nCatalogue & Offres" as CO #DBEAFE
+  rectangle "svc-commandes-activations\nCommandes & Activations" as CA #DBEAFE
+  rectangle "svc-lignes-services\nLignes & Services" as LS #DBEAFE
+  rectangle "svc-usage-facturation\nUsage / Facturation" as UF #DBEAFE
+  rectangle "svc-conformite-audit\nConformite & Audit" as AUD #FEF3C7
+
+  database "DB Clients\nclients_identite" as DBCI
+  database "DB Catalogue\ncatalogue_offres" as DBCO
+  database "DB Commandes\ncommandes_activations" as DBCA
+  database "DB Lignes\nlignes_services" as DBLS
+  database "DB Facturation\nusage_facturation" as DBUF
+  database "DB Audit\nconformite_audit\nappend-only" as DBAUD
+
+  rectangle "Redis\ncache offres" as REDIS
+}
+
+' =========================
+' Liens acteurs -> gateway
+' =========================
+Subscriber --> GW : HTTPS/JSON\nself-service
+Backoffice --> GW : HTTPS/JSON\noperations internes
+Ops --> GW : healthchecks,\nroutage, deploiement
+AUD --> Regulator : preuves d'audit,\nrapports conformite
+
+' =========================
+' Routing Gateway -> services
+' =========================
+GW --> CI : /v1/customers\n/v1/auth
+GW --> CO : /v1/offers
+GW --> CA : /v1/orders\n/v1/activations
+GW --> LS : /v1/lines
+GW --> UF : /v1/invoices\n/v1/invoices/{id}/payments
+GW --> AUD : /v1/audit-events
+
+' =========================
+' Interactions internes dirigees
+' =========================
+CA --> CI : verifier client,\nidentite, risque
+CA --> CO : valider offre,\nprix, eligibilite
+CA --> LS : demander activation
+CA --> AUD : evenements commande\net activation
+
+UF --> CI : verifier client
+UF --> PAY : autoriser / confirmer\npaiement
+UF ..> CDR : usages demo\nlimite / futur
+UF --> AUD : evenements facture\net paiement
+
+CI --> AUD : evenements identite\net MFA
+CO --> AUD : validation offre\nou version catalogue
+
+' =========================
+' Persistance et cache
+' =========================
+CI --> DBCI
+CO --> DBCO
+CA --> DBCA
+LS --> DBLS
+UF --> DBUF
+AUD --> DBAUD
+CO --> REDIS : cache GET /v1/offers
+
+' =========================
+' Integrations externes / simulations
+' =========================
+LS --> HLR : provisioning ligne\nadapter free5GC ou mock
+LS ..> PORT : port-in accepte\nsimulation Phase 1
+CI ..> KYC : verification identite\nsimulation Phase 1
+CI ..> MFA : OTP 123456\nsimulation Phase 1
+
+' =========================
+' Layout helpers
+' =========================
+Subscriber -[hidden]down-> Backoffice
+Backoffice -[hidden]down-> Regulator
+Regulator -[hidden]down-> Ops
+PAY -[hidden]down-> CDR
+CDR -[hidden]down-> HLR
+HLR -[hidden]down-> PORT
+PORT -[hidden]down-> KYC
+KYC -[hidden]down-> MFA
+
+note bottom of UF
+Phase 1 couvre la consultation de factures
+et le paiement UC-06. Le rating complet,
+la mediation CDR et le cycle mensuel
+automatique restent limites ou futurs.
+end note
+
+note bottom of LS
+La portabilite est simulee: numberMode=PORT_IN
+accepte un MSISDN fourni et enregistre
+portabilityStatus=ACCEPTED.
+end note
+
+@enduml

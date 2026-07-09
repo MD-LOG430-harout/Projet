@@ -1,0 +1,159 @@
+@startuml
+title Scenario E2E Phase 1 - Gateway CanTelcoX
+
+autonumber
+actor "Abonne\nparticulier / PME" as User
+participant "API Gateway\nNGINX" as Gateway
+participant "svc-clients-identite" as Identity
+database "DB clients_identite\ncustomers, mfa_challenges" as IdentityDb
+participant "svc-catalogue-offres" as Catalog
+database "DB catalogue_offres\noffers" as CatalogDb
+participant "svc-commandes-activations" as Orders
+database "DB commandes_activations\norders, activations" as OrdersDb
+participant "svc-lignes-services" as Lines
+database "DB lignes_services\nservice_lines" as LinesDb
+participant "HLR/free5GC adapter\nou mock" as Hlr
+participant "svc-usage-facturation" as Billing
+database "DB usage_facturation\ninvoices, payments" as BillingDb
+participant "Passerelle de paiement\nsimulee" as Payment
+participant "svc-conformite-audit" as Audit
+database "DB conformite_audit\naudit_events append-only" as AuditDb
+
+== UC-01 - Inscription et verification d'identite simulee ==
+
+User -> Gateway : POST /v1/customers/register\nTraceId + payload inscription
+Gateway -> Identity : forward
+Identity -> Identity : valider donnees,\nhasher mot de passe et document
+Identity -> IdentityDb : INSERT customer\nstatus=ACTIVE,\nidentityStatus=VERIFIED,\nriskLevel=LOW
+Identity -> Audit : POST /v1/audit-events\nCUSTOMER_REGISTERED
+Audit -> AuditDb : INSERT audit_events
+Audit --> Identity : 201
+Identity --> Gateway : 201 customer
+Gateway --> User : 201 Created\ncustomerId
+
+note over Identity
+Phase 1: KYC/risk est simule dans le service.
+OTP/MFA n'est pas dans UC-01; il est traite par UC-02.
+end note
+
+== UC-02 - Login et MFA ==
+
+User -> Gateway : POST /v1/auth/login\nemail + password
+Gateway -> Identity : forward
+Identity -> IdentityDb : SELECT customer,\nUPDATE login risk
+Identity -> IdentityDb : INSERT MfaChallenge\nOTP demo 123456
+Identity -> Audit : POST /v1/audit-events\nLOGIN_MFA_REQUIRED
+Audit -> AuditDb : INSERT audit_events
+Identity --> Gateway : 202 challengeId,\ndevOtp, mfaRequired
+Gateway --> User : 202 MFA required
+
+User -> Gateway : POST /v1/auth/mfa/verify\nchallengeId + otp
+Gateway -> Identity : forward
+Identity -> IdentityDb : SELECT challenge,\nUPDATE status=VERIFIED
+Identity -> Audit : POST /v1/audit-events\nMFA_VERIFIED
+Audit -> AuditDb : INSERT audit_events
+Identity --> Gateway : 200 sessionToken
+Gateway --> User : 200 authenticated
+
+== UC-05 - Consultation offres et commande idempotente ==
+
+User -> Gateway : GET /v1/offers\nAuthorization Bearer sessionToken
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Catalog : GET /v1/offers
+Catalog -> CatalogDb : SELECT active offers
+Catalog --> Gateway : 200 offers
+Gateway --> User : 200 liste offres
+
+User -> Gateway : POST /v1/orders\nIdempotency-Key + customerId,\nofferId, orderType=NEW_PLAN
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Orders : forward
+Orders -> OrdersDb : find_order_by_idempotency_key(key)
+Orders -> Identity : GET /v1/customers/{customerId}
+Identity --> Orders : ACTIVE, VERIFIED, riskLevel
+Orders -> Catalog : GET /v1/offers/{offerId}
+Catalog --> Orders : offre ACTIVE, prix
+Orders -> OrdersDb : INSERT order\nstatus=ACCEPTED,\nrequest_hash
+Orders -> Audit : POST /v1/audit-events\nORDER_ACCEPTED
+Audit -> AuditDb : INSERT audit_events
+Orders --> Gateway : 201 order ACCEPTED
+Gateway --> User : 201 commande acceptee
+
+opt Rejeu idempotent meme payload
+  User -> Gateway : POST /v1/orders\nmeme Idempotency-Key + meme payload
+  Gateway -> Orders : forward
+  Orders -> OrdersDb : find_order_by_idempotency_key(key)
+  OrdersDb --> Orders : stored response
+  Orders --> Gateway : 201 stored response\nIdempotency-Replayed=true
+  Gateway --> User : 201 meme orderId
+end
+
+== UC-03 - Activation de ligne ==
+
+User -> Gateway : POST /v1/activations\nIdempotency-Key + customerId,\nofferId, simType, numberMode
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Orders : forward
+Orders -> OrdersDb : find_by_idempotency_key(key)
+Orders -> Identity : GET /v1/customers/{customerId}
+Identity --> Orders : ACTIVE, VERIFIED, riskLevel
+Orders -> Catalog : GET /v1/offers/{offerId}
+Catalog --> Orders : offre ACTIVE
+Orders -> Lines : POST /v1/lines/activate
+Lines -> LinesDb : INSERT service_line\nstatus=PENDING
+Lines -> Hlr : provision(line, TraceId)
+Hlr --> Lines : provisioned
+Lines -> LinesDb : UPDATE status=ACTIVE,\nhlrStatus=PROVISIONED
+Lines --> Orders : lineId, msisdn,\nsimIdentifier, hlrStatus
+Orders -> OrdersDb : INSERT activation\nstatus=ACTIVE,\nrequest_hash
+Orders -> Audit : POST /v1/audit-events\nACTIVATION_COMPLETED
+Audit -> AuditDb : INSERT audit_events
+Orders --> Gateway : 201 activation ACTIVE
+Gateway --> User : 201 ligne active
+
+== UC-06 - Consultation facture et paiement ==
+
+User -> Gateway : GET /v1/invoices?customerId={customerId}
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Billing : forward
+Billing -> Identity : GET /v1/customers/{customerId}
+Identity --> Billing : customer exists
+Billing -> BillingDb : SELECT invoices\nou creer facture demo
+Billing --> Gateway : 200 invoices
+Gateway --> User : 200 factures
+
+User -> Gateway : POST /v1/invoices/{invoiceId}/payments\nIdempotency-Key + SIMULATED_CARD,\namount, CAD
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Billing : forward
+Billing -> BillingDb : find_payment_by_idempotency_key(key)
+Billing -> BillingDb : SELECT invoice
+Billing -> Audit : POST /v1/audit-events\nPAYMENT_REQUESTED
+Audit -> AuditDb : INSERT audit_events
+Billing -> Payment : charge(payment request)
+Payment --> Billing : ACCEPTED,\ngatewayTransactionId
+Billing -> BillingDb : INSERT payment ACCEPTED\nUPDATE invoice PAID
+Billing -> Audit : POST /v1/audit-events\nPAYMENT_ACCEPTED, INVOICE_PAID
+Audit -> AuditDb : INSERT audit_events
+Billing --> Gateway : 201 payment ACCEPTED
+Gateway --> User : 201 paiement confirme
+
+== Audit trace ==
+
+User -> Gateway : GET /v1/audit-events?traceId={TraceId}
+Gateway -> Identity : /v1/auth/introspect
+Identity --> Gateway : token valide
+Gateway -> Audit : forward
+Audit -> AuditDb : SELECT by traceId
+Audit --> Gateway : 200 audit events
+Gateway --> User : 200 traces auditables
+
+note over Billing
+UC-04 consultation d'usage detaillee et UC-08 cycle mensuel
+sont hors scope implementation officielle Phase 1.
+Le parcours E2E demontre la consultation de factures et UC-06 paiement.
+end note
+
+@enduml

@@ -1,0 +1,142 @@
+@startuml
+title UC-02 - Authentification et MFA
+
+autonumber
+actor "Abonne / representant PME" as User
+participant "API Gateway\nNGINX" as Gateway
+participant "svc-clients-identite\nREST Controller" as IdentityApi
+participant "Login\nUse case" as LoginUseCase
+participant "VerifyMfa\nUse case" as VerifyUseCase
+participant "Service metier protege\nactivation / paiement" as ProtectedService
+participant "CustomerRepository\nMySQL adapter" as CustomerRepo
+participant "MfaRepository\nMySQL adapter" as MfaRepo
+database "clients_identite\nMySQL" as IdentityDb
+participant "AuditClient\nHTTP adapter" as AuditClient
+participant "svc-conformite-audit" as AuditService
+database "conformite_audit\nMySQL" as AuditDb
+
+== Login and MFA challenge creation ==
+
+User -> Gateway : POST /v1/auth/login\nemail + password + optional riskSignals
+Gateway -> IdentityApi : Forward request
+IdentityApi -> LoginUseCase : execute(payload, trace_id)
+LoginUseCase -> CustomerRepo : find_by_email(email)
+CustomerRepo -> IdentityDb : SELECT customer WHERE email
+IdentityDb --> CustomerRepo : customer or null
+
+alt invalid email or password
+  LoginUseCase -> CustomerRepo : record_failed_login(customer_id, lock_until?)
+  CustomerRepo -> IdentityDb : UPDATE failed_login_attempts,\nlocked_until if threshold reached
+  LoginUseCase -> AuditClient : record(LOGIN_FAILED)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  opt third failed attempt
+    LoginUseCase -> AuditClient : record(LOGIN_LOCKED)
+    AuditClient -> AuditService : POST /v1/audit-events
+    AuditService -> AuditDb : INSERT audit_events
+  end
+  LoginUseCase --> IdentityApi : ApiError 401 invalid_credentials
+  IdentityApi --> Gateway : 401 normalized error
+  Gateway --> User : 401 invalid_credentials
+else account not active
+  LoginUseCase --> IdentityApi : ApiError 403 customer_not_active
+  IdentityApi --> Gateway : 403 normalized error
+  Gateway --> User : 403 customer_not_active
+else account temporarily locked
+  LoginUseCase -> AuditClient : record(LOGIN_BLOCKED_LOCKED)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  LoginUseCase --> IdentityApi : ApiError 423 customer_temporarily_locked
+  IdentityApi --> Gateway : 423 normalized error
+  Gateway --> User : 423 customer_temporarily_locked
+else valid credentials and active account
+  LoginUseCase -> LoginUseCase : Evaluate loginRisk\ncustomer risk + failed attempts + riskSignals
+  LoginUseCase -> CustomerRepo : reset_failed_logins(customer_id)
+  CustomerRepo -> IdentityDb : UPDATE failed_login_attempts=0,\nlocked_until=NULL
+  LoginUseCase -> CustomerRepo : record_login_risk(customer_id, loginRisk)
+  CustomerRepo -> IdentityDb : UPDATE last_login_risk
+  LoginUseCase -> LoginUseCase : Generate demo OTP 123456\nand hash it
+  LoginUseCase -> MfaRepo : create(MfaChallenge PENDING,\nexpires_at=now+5min)
+  MfaRepo -> IdentityDb : INSERT mfa_challenges
+  LoginUseCase -> AuditClient : record(LOGIN_MFA_REQUIRED,\nloginRisk, mfaStrength)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  LoginUseCase --> IdentityApi : challengeId, mfaRequired,\nmfaStrength, loginRisk, devOtp
+  IdentityApi --> Gateway : 202 MFA challenge
+  Gateway --> User : 202 challengeId + devOtp
+end
+
+== MFA verification and session creation ==
+
+User -> Gateway : POST /v1/auth/mfa/verify\nchallengeId + otp
+Gateway -> IdentityApi : Forward request
+IdentityApi -> VerifyUseCase : execute(payload, trace_id)
+VerifyUseCase -> MfaRepo : find_by_id(challengeId)
+MfaRepo -> IdentityDb : SELECT mfa_challenges
+IdentityDb --> MfaRepo : challenge or null
+
+alt challenge not found
+  VerifyUseCase --> IdentityApi : ApiError 404 mfa_challenge_not_found
+  IdentityApi --> Gateway : 404 normalized error
+  Gateway --> User : 404 mfa_challenge_not_found
+else challenge not pending
+  VerifyUseCase --> IdentityApi : ApiError 409 mfa_already_used
+  IdentityApi --> Gateway : 409 normalized error
+  Gateway --> User : 409 mfa_already_used
+else challenge expired
+  VerifyUseCase -> AuditClient : record(MFA_EXPIRED)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  VerifyUseCase --> IdentityApi : ApiError 422 mfa_expired
+  IdentityApi --> Gateway : 422 normalized error
+  Gateway --> User : 422 mfa_expired
+else invalid OTP
+  VerifyUseCase -> AuditClient : record(MFA_FAILED)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  VerifyUseCase --> IdentityApi : ApiError 401 mfa_invalid
+  IdentityApi --> Gateway : 401 normalized error
+  Gateway --> User : 401 mfa_invalid
+else valid OTP
+  VerifyUseCase -> MfaRepo : mark_verified(challengeId)
+  MfaRepo -> IdentityDb : UPDATE status='VERIFIED',\nverified_at=UTC_TIMESTAMP()
+  VerifyUseCase -> CustomerRepo : find_by_id(customer_id)
+  CustomerRepo -> IdentityDb : SELECT customer
+  VerifyUseCase -> AuditClient : record(MFA_VERIFIED)
+  AuditClient -> AuditService : POST /v1/audit-events
+  AuditService -> AuditDb : INSERT audit_events
+  VerifyUseCase --> IdentityApi : authenticated=true,\nsessionToken=dev-session-{challengeId}
+  IdentityApi --> Gateway : 200 session response
+  Gateway --> User : 200 authenticated + sessionToken
+end
+
+== Protected operation with MFA-backed session ==
+
+User -> Gateway : POST /v1/activations\nor POST /v1/invoices/{invoiceId}/payments\nAuthorization: Bearer dev-session-{challengeId}
+Gateway -> IdentityApi : GET /v1/auth/introspect\nAuthorization header
+IdentityApi -> MfaRepo : find_by_session_token(token)
+MfaRepo -> IdentityDb : SELECT verified MFA challenge
+IdentityDb --> MfaRepo : challenge + customer_id
+
+alt invalid, missing, or expired session
+  IdentityApi --> Gateway : 401 invalid_token
+  Gateway --> User : 401 normalized error
+else valid MFA-backed session
+  IdentityApi --> Gateway : 200 active session\ncustomerId
+  Gateway -> ProtectedService : Forward protected request\nTraceId, Idempotency-Key
+  ProtectedService --> Gateway : 201/200 operation result\nor normalized error
+  Gateway --> User : 201/200 result
+end
+
+note over LoginUseCase
+  Phase 1 MFA provider is simulated.
+  STEP_UP is represented by mfaStrength in the response.
+end note
+
+note over Gateway,IdentityApi
+  Protected routes use Bearer dev-session-{challengeId}.
+  The gateway validates it through /v1/auth/introspect.
+  The gateway validates that the session exists; it does not
+  implement a separate MFA strength policy engine in Phase 1.
+end note
+@enduml

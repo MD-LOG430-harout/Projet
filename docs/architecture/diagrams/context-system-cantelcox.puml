@@ -1,0 +1,99 @@
+@startuml
+title Diagramme de contexte systeme - CanTelcoX Phase 1
+
+top to bottom direction
+
+skinparam shadowing false
+skinparam linetype polyline
+skinparam packageStyle rectangle
+skinparam rectangle {
+  BackgroundColor #F8FAFC
+  BorderColor #334155
+}
+skinparam actor {
+  BorderColor #334155
+}
+skinparam ArrowColor #334155
+
+' =========================
+' ACTEURS / PARTIES PRENANTES
+' =========================
+together {
+  actor "Abonne particulier\n/ representant PME" as Subscriber
+  actor "Agent back-office\nCanTelcoX" as Agent
+  actor "Equipe securite\n/ conformite" as Security
+  actor "Regulateur /\nauditeur\nCRTC / Loi 25" as Regulator
+  actor "Equipe exploitation\n/ DevOps-SRE" as Ops
+}
+
+' =========================
+' SYSTEME
+' =========================
+rectangle "<<system>>\nCanTelcoX\nPlateforme commerciale BSS" as BSS #EAF2FF
+
+' =========================
+' SYSTEMES EXTERNES / OUTILS DE DEMO
+' =========================
+together {
+  rectangle "<<external>>\nReseau mobile simule\nHLR / HSS / UDM\nfree5GC ou mock" as Hlr
+  rectangle "<<external>>\nHub de portabilite\nMSISDN simule" as Portability
+  rectangle "<<external>>\nPasserelle de paiement\nsimulee" as Payment
+  rectangle "<<external>>\nMediation d'usage\nCDR / usage demo" as Mediation
+  rectangle "<<external>>\nService OTP / MFA\nsimule Phase 1" as Mfa
+  rectangle "<<external>>\nService KYC / scoring\nsimule Phase 1" as Kyc
+  rectangle "<<external>>\nObservabilite\nPrometheus / Grafana" as Observability
+}
+
+' =========================
+' Liens invisibles pour forcer la structure
+' =========================
+Subscriber -[hidden]down-> BSS
+Agent -[hidden]down-> BSS
+Security -[hidden]down-> BSS
+Regulator -[hidden]down-> BSS
+Ops -[hidden]down-> BSS
+
+BSS -[hidden]down-> Hlr
+BSS -[hidden]down-> Portability
+BSS -[hidden]down-> Payment
+BSS -[hidden]down-> Mediation
+BSS -[hidden]down-> Mfa
+BSS -[hidden]down-> Kyc
+BSS -[hidden]down-> Observability
+
+' =========================
+' Acteurs vers CanTelcoX
+' =========================
+Subscriber --> BSS : HTTPS/JSON\ninscription, MFA,\noffres, commandes,\nactivation, consultation,\npaiement
+BSS --> Subscriber : HTTPS/JSON\nconfirmations, statuts,\nfactures, notifications\nsimulees
+
+Agent --> BSS : HTTPS/JSON\nsupport client,\nactivation,\nconsultation client
+BSS --> Agent : HTTPS/JSON\nrapports operationnels,\nerreurs, statuts
+
+Security --> BSS : regles anti-fraude,\ncontroles SIM swap,\nconsultation traces
+BSS --> Security : alertes risque,\ntraces auditables
+
+Regulator --> BSS : exigences reglementaires,\ndemandes de preuves
+BSS --> Regulator : rapports de conformite,\njournaux d'audit
+
+Ops --> BSS : exploitation,\ndeploiement,\nhealthchecks
+BSS --> Ops : etats de service,\nlogs, metriques
+
+' =========================
+' CanTelcoX vers systemes externes
+' =========================
+BSS --> Hlr : REST/JSON\nprovisioning ligne,\nactivation SIM/eSIM
+BSS --> Portability : REST/JSON\ndemande de portabilite\nsimplifiee
+BSS --> Payment : REST/JSON\nautorisation / capture\npaiement facture
+BSS --> Mediation : REST/JSON ou batch\nCDR voix/SMS/data\nsimules
+BSS --> Mfa : REST/JSON\ngeneration / validation\nOTP-MFA
+BSS --> Kyc : REST/JSON\nverification identite,\nscore de risque
+BSS --> Observability : metriques,\nhealthchecks,\ndashboards
+
+note bottom of BSS
+Vue contexte: CanTelcoX est volontairement represente comme une boite noire.
+Les services internes, bounded contexts et schemas de donnees sont detailles
+dans les vues logique, developpement, persistance et deploiement.
+end note
+
+@enduml

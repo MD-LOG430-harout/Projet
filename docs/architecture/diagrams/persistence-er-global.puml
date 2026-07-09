@@ -1,0 +1,147 @@
+@startuml
+title CanTelcoX Phase 1 - Global Logical Persistence ER
+
+hide circle
+skinparam linetype ortho
+skinparam packageStyle rectangle
+
+package "clients_identite" {
+  entity customers {
+    * customer_id : CHAR(36) <<PK>>
+    --
+    email : VARCHAR(255) <<UQ>>
+    display_name : VARCHAR(160)
+    legal_name : VARCHAR(180)
+    province : CHAR(2)
+    status : VARCHAR(40)
+    identity_status : VARCHAR(40)
+    risk_level : VARCHAR(40)
+    password_hash : VARCHAR(255)
+    created_at : TIMESTAMP
+  }
+
+  entity mfa_challenges {
+    * challenge_id : CHAR(36) <<PK>>
+    --
+    customer_id : CHAR(36) <<FK>>
+    status : VARCHAR(40)
+    expires_at : DATETIME
+    verified_at : DATETIME
+  }
+}
+
+package "catalogue_offres" {
+  entity offers {
+    * offer_id : VARCHAR(80) <<PK>>
+    --
+    name : VARCHAR(160)
+    monthly_price : DECIMAL(10,2)
+    data_gb : INT
+    status : VARCHAR(40)
+  }
+}
+
+package "lignes_services" {
+  entity service_lines {
+    * line_id : CHAR(36) <<PK>>
+    --
+    customer_id : CHAR(36) <<logical ref>>
+    offer_id : VARCHAR(80) <<logical ref>>
+    msisdn : VARCHAR(32) <<UQ>>
+    sim_identifier : VARCHAR(80) <<UQ>>
+    imsi : VARCHAR(32) <<UQ>>
+    supi : VARCHAR(48)
+    status : VARCHAR(40)
+    hlr_status : VARCHAR(40)
+  }
+}
+
+package "commandes_activations" {
+  entity activations {
+    * activation_id : CHAR(36) <<PK>>
+    --
+    idempotency_key : VARCHAR(160) <<UQ>>
+    request_hash : CHAR(64)
+    customer_id : CHAR(36) <<logical ref>>
+    offer_id : VARCHAR(80) <<logical ref>>
+    line_id : CHAR(36) <<logical ref>>
+    status : VARCHAR(40)
+    response_body : JSON
+    http_status : INT
+  }
+
+  entity orders {
+    * order_id : CHAR(36) <<PK>>
+    --
+    customer_id : CHAR(36) <<logical ref>>
+    offer_id : VARCHAR(80) <<logical ref>>
+    idempotency_key : VARCHAR(160) <<UQ>>
+    request_hash : CHAR(64)
+    order_type : VARCHAR(60)
+    status : VARCHAR(40)
+    orchestration_status : VARCHAR(60)
+    total_amount : DECIMAL(10,2)
+  }
+}
+
+package "usage_facturation" {
+  entity invoices {
+    * invoice_id : CHAR(36) <<PK>>
+    --
+    customer_id : CHAR(36) <<logical ref>>
+    billing_period : VARCHAR(20)
+    amount_due : DECIMAL(10,2)
+    currency : CHAR(3)
+    status : VARCHAR(20)
+    due_date : DATE
+    paid_at : DATETIME
+  }
+
+  entity payments {
+    * payment_id : CHAR(36) <<PK>>
+    --
+    invoice_id : CHAR(36) <<logical ref>>
+    customer_id : CHAR(36) <<logical ref>>
+    idempotency_key : VARCHAR(160) <<UQ>>
+    request_hash : CHAR(64)
+    amount : DECIMAL(10,2)
+    currency : CHAR(3)
+    status : VARCHAR(20)
+    response_body : JSON
+  }
+}
+
+package "conformite_audit" {
+  entity audit_events {
+    * audit_event_id : CHAR(36) <<PK>>
+    --
+    event_type : VARCHAR(120)
+    actor_id : VARCHAR(80)
+    customer_id : VARCHAR(80) <<logical ref>>
+    resource_id : VARCHAR(120)
+    trace_id : VARCHAR(120)
+    source_service : VARCHAR(120)
+    result : VARCHAR(40)
+    metadata : JSON
+    created_at : DATETIME
+  }
+}
+
+customers ||--o{ mfa_challenges : physical FK
+customers .. service_lines : customer_id
+offers .. service_lines : offer_id
+customers .. orders : customer_id
+offers .. orders : offer_id
+customers .. activations : customer_id
+offers .. activations : offer_id
+service_lines .. activations : line_id
+customers .. invoices : customer_id
+invoices ||..o{ payments : invoice_id logical
+customers .. payments : customer_id
+customers .. audit_events : customer_id
+
+note bottom
+  Cross-service identifiers are logical references, not physical foreign keys.
+  Each bounded context owns its schema and validates remote data through REST adapters.
+end note
+@enduml

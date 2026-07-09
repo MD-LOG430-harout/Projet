@@ -1,0 +1,57 @@
+@startuml
+title Idempotence - Double soumission d'une commande UC-05
+
+autonumber
+actor "Abonne / PME" as User
+participant "API Gateway\nNGINX" as Gateway
+participant "svc-commandes-activations\nPOST /v1/orders" as Orders
+database "DB commandes_activations\norders" as OrderDb
+participant "svc-clients-identite" as Customers
+participant "svc-catalogue-offres" as Offers
+participant "svc-conformite-audit" as Audit
+
+== Premiere soumission ==
+
+User -> Gateway : POST /v1/orders\nIdempotency-Key: abc-123\npayload A
+Gateway -> Orders : forward
+Orders -> Orders : calculer request_hash(payload A)
+Orders -> OrderDb : find_order_by_idempotency_key(abc-123)
+OrderDb --> Orders : aucune commande existante
+Orders -> Customers : GET /v1/customers/{customerId}
+Customers --> Orders : client ACTIVE,\nidentityStatus=VERIFIED,\nriskLevel=LOW
+Orders -> Offers : GET /v1/offers/{offerId}
+Offers --> Orders : offre ACTIVE, prix
+Orders -> OrderDb : INSERT order\nidempotency_key=abc-123,\nrequest_hash,\nresponse_body,\nhttp_status=201
+Orders -> Audit : POST /v1/audit-events\nORDER_ACCEPTED
+Audit --> Orders : 201
+Orders --> Gateway : 201 Created\nIdempotency-Replayed=false\norderId=ORD-001
+Gateway --> User : 201 Created\ncommande acceptee
+
+== Rejeu avec la meme cle et le meme payload ==
+
+User -> Gateway : POST /v1/orders\nIdempotency-Key: abc-123\npayload A
+Gateway -> Orders : forward
+Orders -> Orders : calculer request_hash(payload A)
+Orders -> OrderDb : find_order_by_idempotency_key(abc-123)
+OrderDb --> Orders : order existante\nrequest_hash identique,\nresponse_body stocke,\nhttp_status=201
+Orders --> Gateway : 201 stored response\nIdempotency-Replayed=true\norderId=ORD-001
+Gateway --> User : 201 meme resultat\naucune nouvelle commande
+
+== Rejeu avec la meme cle mais un payload different ==
+
+User -> Gateway : POST /v1/orders\nIdempotency-Key: abc-123\npayload B
+Gateway -> Orders : forward
+Orders -> Orders : calculer request_hash(payload B)
+Orders -> OrderDb : find_order_by_idempotency_key(abc-123)
+OrderDb --> Orders : order existante\nrequest_hash different
+Orders --> Gateway : 409 idempotency_key_conflict
+Gateway --> User : 409 erreur JSON normalisee
+
+note over Orders,OrderDb
+La contrainte unique uq_orders_idempotency_key
+protege la table contre les doublons.
+Le request_hash distingue un rejeu identique
+d'une reutilisation incorrecte de la meme cle.
+end note
+
+@enduml
