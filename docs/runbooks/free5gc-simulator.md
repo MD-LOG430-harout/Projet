@@ -56,6 +56,58 @@ MongoDB:    mongodb://localhost:27017/free5gc
    - HTTP/2 cleartext is required
    - verification should be best-effort; provisioning success remains the activation gate
 
+## Manual Postman / curl Checks
+
+The official CanTelcoX Postman collection does not expose the free5GC WebConsole subscriber endpoints directly. Those calls are normally made automatically by `svc-lignes-services` during UC-03 when `HLR_ENABLED=true`.
+
+For manual free5GC checks, import the simulator collection:
+
+```text
+docs/free5gc-udm-min-max (2)/free5gc-udm-min-max/postman/webconsole-provisioning.postman_collection.json
+```
+
+Default WebConsole credentials for the provided simulator:
+
+```text
+username: admin
+password: free5gc
+```
+
+Manual login:
+
+```bash
+curl -i -X POST http://localhost:5050/api/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"free5gc"}'
+```
+
+Copy the returned `access_token` or `token`, then call subscriber endpoints with:
+
+```text
+Token: <token>
+Content-Type: application/json
+```
+
+Example lookup:
+
+```bash
+curl -i http://localhost:5050/api/subscriber/imsi-208930000000001/20893 \
+  -H "Token: <token>"
+```
+
+If this returns `200`, the subscriber already exists. If it returns `404` or `400`, the adapter can create or complete it during activation.
+
+Example minimal provisioning call:
+
+```bash
+curl -i -X POST http://localhost:5050/api/subscriber/imsi-208930000000001/20893 \
+  -H "Token: <token>" \
+  -H "Content-Type: application/json" \
+  -d @subscriber-example.json
+```
+
+Prefer testing through CanTelcoX UC-03 instead of hand-crafting `subscriber-example.json`, because `Free5gcHlrAdapter` already sends the full payload expected by the WebConsole.
+
 ## Docker Compose Integration Options
 
 Preferred Phase 1 path:
