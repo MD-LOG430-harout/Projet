@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: CanTelcoX Phase 1 API
   version: 0.1.0
-  description: Phase 1 API for UC-01, UC-02, UC-03, UC-05, UC-06, and append-only audit evidence. Protected endpoints use an OAuth2-style Bearer access token enforced by the NGINX API Gateway after MFA.
+  description: Phase 1 API for UC-01, UC-02, UC-03, UC-05, UC-06, and append-only audit evidence. Protected endpoints use a Bearer dev-session token issued after MFA and introspected by the NGINX API Gateway.
 servers:
   - url: http://localhost:8080
 paths:
