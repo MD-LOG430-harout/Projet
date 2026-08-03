@@ -198,7 +198,7 @@ function Show-DatabaseInspection {
     Write-Host "`n--- saga_state ---" -ForegroundColor DarkCyan
     Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT saga_id,order_id,status,payment_status,line_status,portability_status,deadline_at FROM commandes_activations.saga_state WHERE order_id='$OrderId';"))
     Write-Host "`n--- outbox_events ---" -ForegroundColor DarkCyan
-    Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM commandes_activations.outbox_events WHERE aggregate_id='$OrderId' UNION ALL SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM usage_facturation.outbox_events WHERE JSON_UNQUOTE(JSON_EXTRACT(payload,'$.idCommande'))='$OrderId' UNION ALL SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM lignes_services.outbox_events WHERE JSON_UNQUOTE(JSON_EXTRACT(payload,'$.idCommande'))='$OrderId';"))
+    Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM commandes_activations.outbox_events WHERE aggregate_id='$OrderId' UNION ALL SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM usage_facturation.outbox_events WHERE JSON_UNQUOTE(JSON_EXTRACT(payload,'$.payload.idCommande'))='$OrderId' UNION ALL SELECT event_type,status,event_id,aggregate_id,published_at,attempt_count FROM lignes_services.outbox_events WHERE JSON_UNQUOTE(JSON_EXTRACT(payload,'$.payload.idCommande'))='$OrderId';"))
     Write-Host "`n--- processed_events counts ---" -ForegroundColor DarkCyan
     Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT 'commandes' service,COUNT(*) processed FROM commandes_activations.processed_events UNION ALL SELECT 'billing',COUNT(*) FROM usage_facturation.processed_events UNION ALL SELECT 'lines',COUNT(*) FROM lignes_services.processed_events UNION ALL SELECT 'audit',COUNT(*) FROM conformite_audit.processed_events;"))
     Write-Host "`n--- audit records ---" -ForegroundColor DarkCyan
@@ -253,10 +253,15 @@ function Read-Topic {
         [int]$MaxMessages = 1,
         [int]$TimeoutMs = 20000
     )
-    & docker compose -p $ProjectName exec -T kafka `
-        /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 `
-        --topic $Topic --from-beginning --max-messages $MaxMessages --timeout-ms $TimeoutMs `
-        --property print.headers=true
+    # kafka-console-consumer writes its progress line to stderr; keep only the records.
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        (& docker compose -p $ProjectName exec -T kafka `
+            /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 `
+            --topic $Topic --from-beginning --max-messages $MaxMessages --timeout-ms $TimeoutMs 2>$null)
+    }
+    finally { $ErrorActionPreference = $previous }
 }
 
 function Invoke-DlqDemo {
@@ -271,17 +276,43 @@ function Invoke-DlqDemo {
     Write-Host $poison
     Publish-RawEvent -Topic $topic -Key $aggregateId -Document $poison
 
-    Write-Host "`n--- consumer retries (svc-commandes-activations) ---" -ForegroundColor DarkCyan
+    Write-Host "`n--- consumer reaction (application warnings only) ---" -ForegroundColor DarkCyan
     Start-Sleep -Seconds 6
-    & docker compose -p $ProjectName logs --tail 30 svc-commandes-activations
+    $logs = & docker compose -p $ProjectName logs --since 1m svc-commandes-activations 2>$null
+    $interesting = $logs | Where-Object { $_ -notmatch '"message":"http_request"' } | Select-Object -Last 6
+    if ($interesting) { $interesting | ForEach-Object { Write-Host "  $_" } }
+    else { Write-Host '  (retries are silent by design; the DLQ record and the counters below are the evidence)' }
 
     Write-Host "`n--- message parked in $topic.dlq ---" -ForegroundColor DarkCyan
-    Read-Topic -Topic "$topic.dlq" -MaxMessages 1
+    # The topic keeps every past run, so pick the record produced by THIS run.
+    $records = Read-Topic -Topic "$topic.dlq" -MaxMessages 50 -TimeoutMs 8000
+    $raw = $records | Where-Object { $_ -match [regex]::Escape($aggregateId) } | Select-Object -Last 1
+    if (-not $raw) {
+        Write-Host '  No DLQ record read back; check the consumer logs above.' -ForegroundColor Yellow
+    }
+    else {
+        # The stored error embeds the whole JSON Schema; show only what the room can read.
+        $dlq = $raw | ConvertFrom-Json
+        Write-Host "  originalTopic    : $($dlq.originalTopic)"
+        Write-Host "  originalPartition: $($dlq.originalPartition)  offset: $($dlq.originalOffset)"
+        Write-Host "  attempts         : $($dlq.attempts)"
+        Write-Host "  failedAt         : $($dlq.failedAt)"
+        Write-Host "  error            : $(($dlq.error -split "`n")[0])"
+        Write-Host "  originalPayload  : $($dlq.originalPayload | ConvertTo-Json -Compress)"
+    }
 
-    Write-Host "`n--- DLQ and retry counters ---" -ForegroundColor DarkCyan
-    $metrics = (Invoke-WebRequest 'http://localhost:8080/v1/orders/metrics' -UseBasicParsing -ErrorAction SilentlyContinue)
-    if (-not $metrics) {
-        & docker compose -p $ProjectName exec -T svc-commandes-activations sh -c "wget -qO- http://localhost:5000/metrics | grep -E 'cantelcox_events_dlq_total|cantelcox_event_retries_total|cantelcox_events_consumed_total'"
+    Write-Host "`n--- DLQ and retry counters (Prometheus) ---" -ForegroundColor DarkCyan
+    $counters = [ordered]@{
+        'events routed to DLQ'   = 'sum(cantelcox_events_dlq_total) by (service, source_topic)'
+        'retries before the DLQ' = 'sum(cantelcox_event_retries_total{stage="consumer"}) by (service)'
+    }
+    foreach ($label in $counters.Keys) {
+        Write-Host "  $label"
+        $encoded = [uri]::EscapeDataString($counters[$label])
+        $result = Invoke-RestMethod "http://localhost:9090/api/v1/query?query=$encoded" -TimeoutSec 10
+        foreach ($series in $result.data.result) {
+            Write-Host ("    {0,-28} {1}" -f $series.metric.service, $series.value[1])
+        }
     }
 
     Write-Host "`nThe consumer committed the offset after the DLQ publication, so it is not blocked." -ForegroundColor Green
@@ -298,7 +329,8 @@ function Invoke-ReplayDemo {
         $OrderId = New-DemoOrder -ExpectedTerminalStatus 'CONFIRMEE' -ScenarioName 'Baseline order for the replay proof'
     }
 
-    $payloadQuery = "SELECT payload FROM lignes_services.outbox_events WHERE event_type='LigneActivee' AND JSON_UNQUOTE(JSON_EXTRACT(payload,'`$.idCommande'))='$OrderId' LIMIT 1;"
+    # payload holds the whole envelope, so the business key sits under $.payload.idCommande.
+    $payloadQuery = "SELECT payload FROM lignes_services.outbox_events WHERE event_type='LigneActivee' AND JSON_UNQUOTE(JSON_EXTRACT(payload,'`$.payload.idCommande'))='$OrderId' LIMIT 1;"
     $payload = (& docker @($quietMysql + @('-e', $payloadQuery))) -join ''
     if (-not $payload) { throw "No LigneActivee event found for order $OrderId." }
     $document = $payload | ConvertFrom-Json
@@ -323,8 +355,14 @@ function Invoke-ReplayDemo {
     }
     Write-Host "`nIdentical state: processed_events blocked the duplicate and the terminal order was not re-applied." -ForegroundColor Green
 
-    Write-Host "`n--- handler outcome in the logs (DUPLICATE / LATE_IGNORED) ---" -ForegroundColor DarkCyan
-    & docker compose -p $ProjectName logs --tail 20 svc-commandes-activations
+    # Positive proof: the event was really consumed again and actively rejected,
+    # rather than never delivered.
+    Write-Host "`n--- saga transitions by outcome (Prometheus) ---" -ForegroundColor DarkCyan
+    $transitions = Invoke-RestMethod "http://localhost:9090/api/v1/query?query=cantelcox_saga_transitions_total" -TimeoutSec 10
+    foreach ($series in $transitions.data.result) {
+        Write-Host ("  {0} = {1}" -f $series.metric.result, $series.value[1])
+    }
+    Write-Host '  APPLIED advanced the saga; DUPLICATE is the replay that was refused.'
 }
 
 function Invoke-ReliabilityTests {
