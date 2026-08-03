@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://cantelcox.local/contracts/events/CommandeAnnulee/v1.json", "title": "CommandeAnnulee v1", "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "aggregateId", "aggregateType", "sagaId", "traceId", "correlationId", "causationId", "payload"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"}, "eventType": {"const": "CommandeAnnulee"}, "eventVersion": {"const": 1}, "occurredAt": {"type": "string", "format": "date-time"},
+    "aggregateId": {"type": "string", "minLength": 1}, "aggregateType": {"const": "Commande"}, "sagaId": {"type": "string", "format": "uuid"}, "traceId": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "correlationId": {"type": "string", "minLength": 1}, "causationId": {"type": "string", "format": "uuid"},
+    "payload": {"type": "object", "required": ["idCommande", "reasonCode", "reasonMessage", "cancelledAt", "compensationRequired"], "properties": {
+      "idCommande": {"type": "string", "minLength": 1}, "reasonCode": {"type": "string", "minLength": 1}, "reasonMessage": {"type": "string"}, "cancelledAt": {"type": "string", "format": "date-time"}, "compensationRequired": {"type": "boolean"}
+    }, "additionalProperties": true}
+  }, "additionalProperties": false
+}

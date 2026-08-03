@@ -1,6 +1,8 @@
 import requests
+import hashlib
 
 from services.shared.errors import ApiError
+from services.shared.tracing import traceparent_from_trace_id
 
 
 class ServiceClient:
@@ -12,6 +14,10 @@ class ServiceClient:
         headers = {"Content-Type": "application/json"}
         if trace_id:
             headers["TraceId"] = trace_id
+            candidate = trace_id.replace("-", "").lower()
+            if len(candidate) != 32 or any(char not in "0123456789abcdef" for char in candidate):
+                candidate = hashlib.sha256(trace_id.encode("utf-8")).hexdigest()[:32]
+            headers["traceparent"] = traceparent_from_trace_id(candidate)
         return headers
 
     def _raise(self, response, fallback_code):

@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortInRequestedEvent.json",
+  "title": "PortInRequestedEvent",
+  "description": "Demande initiale de port-in — topic Kafka portability.port-in-requested — producteur BSS1",
+  "allOf": [
+    { "$ref": "EventNotification.envelope.json" },
+    {
+      "type": "object",
+      "properties": {
+        "@type": { "const": "PortInRequestedEvent" },
+        "eventType": { "const": "PortInRequestedEvent" },
+        "event": {
+          "type": "object",
+          "required": ["portabilityOrder"],
+          "properties": {
+            "portabilityOrder": {
+              "allOf": [
+                { "$ref": "PortabilityOrderEventRef.json" },
+                {
+                  "properties": {
+                    "status": { "const": "requested" }
+                  },
+                  "not": { "required": ["id"] }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "@type": "PortInRequestedEvent",
+      "@baseType": "Event",
+      "id": "evt-bss1-a1b2c3",
+      "href": "https://hub.example.com/tmf-api/eventManagement/v4/event/evt-bss1-a1b2c3",
+      "eventId": "PORT-EVT-20260721-001",
+      "eventTime": "2026-07-21T14:30:00.000Z",
+      "eventType": "PortInRequestedEvent",
+      "correlationId": "PORT-EVT-20260721-001",
+      "domain": "portability",
+      "title": "Demande port-in",
+      "description": "BSS1 publie une demande de portabilité entrante",
+      "priority": "3",
+      "timeOccurred": "2026-07-21T14:30:00.000Z",
+      "source": {
+        "@type": "EntityRef",
+        "id": "BSS1",
+        "href": "https://hub.example.com/bss1",
+        "@referredType": "Application"
+      },
+      "event": {
+        "portabilityOrder": {
+          "@type": "PortabilityOrderRef",
+          "@referredType": "PortabilityOrder",
+          "number": "5145551234",
+          "status": "requested",
+          "recipientOperator": "BSS1",
+          "currentOperator": "BSS2",
+          "requestedPortDate": "2026-07-25",
+          "customerName": "Pierre Gauthier",
+          "accountId": "CUST-98765"
+        }
+      }
+    }
+  ]
+}

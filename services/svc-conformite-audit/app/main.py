@@ -7,9 +7,11 @@ from services.shared.http import register_request_hooks
 from services.shared.logging import configure_json_logging
 from services.shared.metrics import register_metrics
 from services.shared.mysql import connect_from_env
+from services.shared.tracing import initialize_tracing, OtelSettings
 
 from app.adapters.inbound.rest.routes import bp
 from app.adapters.outbound.persistence.mysql_audit_repository import MysqlAuditRepository
+from app.event_runtime import start_event_runtime
 
 
 SERVICE_NAME = "svc-conformite-audit"
@@ -17,6 +19,7 @@ SERVICE_NAME = "svc-conformite-audit"
 
 def create_app(audit_repository=None):
     app = Flask(__name__)
+    initialize_tracing(OtelSettings.from_env(SERVICE_NAME))
     configure_json_logging(app, SERVICE_NAME)
     register_request_hooks(app, SERVICE_NAME)
     register_metrics(app, SERVICE_NAME)
@@ -29,9 +32,11 @@ def create_app(audit_repository=None):
         "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "cantelcox_dev"),
         "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "conformite_audit"),
     }
-    connection_factory = lambda: connect_from_env(db_config)
+    def connection_factory():
+        return connect_from_env(db_config)
     app.config["audit_repository"] = audit_repository or MysqlAuditRepository(connection_factory)
     app.register_blueprint(bp)
+    app.extensions["event_runtime_threads"] = start_event_runtime(connection_factory)
     return app
 
 
@@ -40,4 +45,3 @@ app = create_app()
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", "5000")))
-

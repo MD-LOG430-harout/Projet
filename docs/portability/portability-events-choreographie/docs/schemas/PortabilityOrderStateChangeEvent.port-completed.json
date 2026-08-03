@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortabilityOrderStateChangeEvent.port-completed.json",
+  "title": "PortabilityOrderStateChangeEvent (port-completed)",
+  "description": "Transfert terminé — topic portability.port-completed — producteur Hub",
+  "allOf": [
+    { "$ref": "EventNotification.envelope.json" },
+    {
+      "type": "object",
+      "properties": {
+        "@type": { "const": "PortabilityOrderStateChangeEvent" },
+        "eventType": { "const": "PortabilityOrderStateChangeEvent" },
+        "event": {
+          "type": "object",
+          "required": ["portabilityOrder"],
+          "properties": {
+            "portabilityOrder": {
+              "allOf": [
+                { "$ref": "PortabilityOrderEventRef.json" },
+                {
+                  "required": ["id", "href", "status", "confirmedPortDate"],
+                  "properties": {
+                    "status": { "const": "port_completed" }
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "@type": "PortabilityOrderStateChangeEvent",
+      "@baseType": "Event",
+      "id": "evt-hub-f6g7h8",
+      "href": "https://hub.example.com/tmf-api/eventManagement/v4/event/evt-hub-f6g7h8",
+      "eventId": "PORT-EVT-20260721-005",
+      "eventTime": "2026-07-25T08:00:00.000Z",
+      "eventType": "PortabilityOrderStateChangeEvent",
+      "correlationId": "PORT-20260721-ABC123",
+      "domain": "portability",
+      "title": "Portabilité terminée",
+      "description": "Le transfert du numéro est complété",
+      "priority": "3",
+      "timeOccurred": "2026-07-25T08:00:00.000Z",
+      "source": {
+        "@type": "EntityRef",
+        "id": "PortabilityHub",
+        "href": "https://hub.example.com",
+        "@referredType": "Application"
+      },
+      "event": {
+        "portabilityOrder": {
+          "@type": "PortabilityOrderRef",
+          "@referredType": "PortabilityOrder",
+          "id": "PORT-20260721-ABC123",
+          "href": "https://hub.example.com/portability/order/PORT-20260721-ABC123",
+          "number": "5145551234",
+          "status": "port_completed",
+          "recipientOperator": "BSS1",
+          "currentOperator": "BSS2",
+          "requestedPortDate": "2026-07-25",
+          "confirmedPortDate": "2026-07-25",
+          "customerName": "Pierre Gauthier",
+          "accountId": "CUST-98765"
+        }
+      }
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 import json
 
+from services.shared.outbox import MysqlOutboxRepository
+
 
 class MysqlActivationRepository:
     def __init__(self, connection_factory):
@@ -23,6 +25,7 @@ class MysqlActivationRepository:
                       status VARCHAR(40) NOT NULL,
                       response_body JSON NOT NULL,
                       http_status INT NOT NULL,
+                      current_operator VARCHAR(80) NULL,
                       failure_reason VARCHAR(255) NULL,
                       created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
                       updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -62,6 +65,7 @@ class MysqlActivationRepository:
                 )
                 self._ensure_column(cursor, "orders", "orchestration_status", "VARCHAR(60) NOT NULL DEFAULT 'READY_FOR_ACTIVATION'")
                 self._ensure_column(cursor, "orders", "confirmation_status", "VARCHAR(60) NOT NULL DEFAULT 'SIMULATED_SENT'")
+                self._ensure_column(cursor, "orders", "current_operator", "VARCHAR(80) NULL")
                 self._ensure_index(cursor, "activations", "idx_activations_offer", "offer_id")
                 self._ensure_index(cursor, "activations", "idx_activations_line", "line_id")
                 self._ensure_index(cursor, "orders", "idx_orders_customer_status", "customer_id, status")
@@ -141,8 +145,8 @@ class MysqlActivationRepository:
                     """
                     INSERT INTO orders
                     (order_id, customer_id, offer_id, order_type, status, orchestration_status, confirmation_status, total_amount, currency,
-                     idempotency_key, request_hash, response_body, http_status, created_at)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    idempotency_key, request_hash, response_body, http_status, saga_id, current_operator, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                     """,
                     (
                         order.order_id,
@@ -158,10 +162,75 @@ class MysqlActivationRepository:
                         order.request_hash,
                         json.dumps(order.response_body),
                         order.http_status,
+                        order.saga_id,
+                        order.current_operator,
                         order.created_at.replace(tzinfo=None),
                     ),
                 )
             conn.commit()
+
+    def create_order_with_saga(self, order, saga, event):
+        self.ensure_schema()
+        with self.connection_factory() as conn:
+            try:
+                with conn.cursor() as cursor:
+                    self._insert_order(cursor, order)
+                    cursor.execute(
+                        """
+                        INSERT INTO saga_state
+                          (saga_id, order_id, status, payment_status, line_status,
+                           portability_status, last_event_type, last_event_id,
+                           deadline_at, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                        """,
+                        (
+                            saga.saga_id,
+                            saga.order_id,
+                            saga.status,
+                            saga.payment_status,
+                            saga.line_status,
+                            saga.portability_status,
+                            saga.last_event_type,
+                            saga.last_event_id,
+                            saga.deadline_at.replace(tzinfo=None),
+                            saga.created_at.replace(tzinfo=None),
+                        ),
+                    )
+                    MysqlOutboxRepository().insert(cursor, event)
+                conn.commit()
+            except Exception:
+                conn.rollback()
+                raise
+
+    def _insert_order(self, cursor, order):
+        cursor.execute(
+            """
+            INSERT INTO orders
+              (order_id, customer_id, offer_id, order_type, status,
+               orchestration_status, confirmation_status, total_amount, currency,
+               idempotency_key, request_hash, response_body, http_status, saga_id,
+               current_operator, created_at)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            """,
+            (
+                order.order_id,
+                order.customer_id,
+                order.offer_id,
+                order.order_type,
+                order.status,
+                order.orchestration_status,
+                order.confirmation_status,
+                order.total_amount,
+                order.currency,
+                order.idempotency_key,
+                order.request_hash,
+                json.dumps(order.response_body),
+                order.http_status,
+                order.saga_id,
+                order.current_operator,
+                order.created_at.replace(tzinfo=None),
+            ),
+        )
 
     def find_order_by_idempotency_key(self, idempotency_key):
         self.ensure_schema()
@@ -169,3 +238,25 @@ class MysqlActivationRepository:
             with conn.cursor() as cursor:
                 cursor.execute("SELECT * FROM orders WHERE idempotency_key=%s", (idempotency_key,))
                 return cursor.fetchone()
+
+    def find_order_by_id(self, order_id):
+        self.ensure_schema()
+        with self.connection_factory() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT * FROM orders WHERE order_id=%s", (order_id,))
+                return cursor.fetchone()
+
+    def find_expired_sagas(self, limit=100):
+        self.ensure_schema()
+        if not 1 <= limit <= 1000:
+            raise ValueError("limit must be between 1 and 1000")
+        with self.connection_factory() as conn:
+            with conn.cursor() as cursor:
+                cursor.execute(
+                    f"""
+                    SELECT * FROM saga_state
+                    WHERE status='EN_COURS' AND deadline_at <= UTC_TIMESTAMP(6)
+                    ORDER BY deadline_at LIMIT {limit}
+                    """
+                )
+                return cursor.fetchall()

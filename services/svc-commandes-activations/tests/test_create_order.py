@@ -10,8 +10,8 @@ for name in list(sys.modules):
     if name == "app" or name.startswith("app."):
         del sys.modules[name]
 
-from services.shared.errors import ApiError
-from app.main import create_app
+from services.shared.errors import ApiError  # noqa: E402
+from app.main import create_app  # noqa: E402
 
 
 class Activations:
@@ -25,9 +25,12 @@ class Activations:
 class Orders:
     def __init__(self):
         self.by_key = {}
+        self.by_id = {}
+        self.sagas = {}
+        self.events = []
 
-    def create_order(self, order):
-        self.by_key[order.idempotency_key] = {
+    def create_order_with_saga(self, order, saga, event):
+        stored = {
             "order_id": order.order_id,
             "customer_id": order.customer_id,
             "offer_id": order.offer_id,
@@ -41,10 +44,19 @@ class Orders:
             "request_hash": order.request_hash,
             "response_body": order.response_body,
             "http_status": order.http_status,
+            "saga_id": order.saga_id,
+            "updated_at": order.created_at,
         }
+        self.by_key[order.idempotency_key] = stored
+        self.by_id[order.order_id] = stored
+        self.sagas[saga.saga_id] = saga
+        self.events.append(event)
 
     def find_order_by_idempotency_key(self, key):
         return self.by_key.get(key)
+
+    def find_order_by_id(self, order_id):
+        return self.by_id.get(order_id)
 
 
 class Customers:
@@ -114,7 +126,7 @@ def order_payload(offer_id="forfait-5g-20gb", quantity=1):
     }
 
 
-def test_successful_order_creation_and_audit():
+def test_successful_order_acceptance_and_audit():
     audit = Audit()
     response = make_app(audit=audit).test_client().post(
         "/v1/orders",
@@ -122,16 +134,13 @@ def test_successful_order_creation_and_audit():
         headers={"Idempotency-Key": "order-1", "TraceId": "trace-order"},
     )
 
-    assert response.status_code == 201
+    assert response.status_code == 202
     body = response.get_json()
-    assert body["status"] == "ACCEPTED"
-    assert body["orchestrationStatus"] == "READY_FOR_ACTIVATION"
-    assert body["confirmationStatus"] == "SIMULATED_SENT"
-    assert body["totalAmount"] == 49.99
-    assert body["currency"] == "CAD"
+    assert body["status"] == "EN_COURS"
+    assert body["sagaId"]
+    assert response.headers["Location"] == f"/v1/orders/{body['orderId']}/status"
     assert any(event[0]["eventType"] == "ORDER_RISK_CHECKED" for event in audit.events)
     assert any(event[0]["eventType"] == "ORDER_ACCEPTED" for event in audit.events)
-    assert any(event[0]["eventType"] == "ORDER_CONFIRMATION_SIMULATED" for event in audit.events)
 
 
 def test_idempotent_order_replay_returns_same_order():
@@ -141,11 +150,32 @@ def test_idempotent_order_replay_returns_same_order():
     first = client.post("/v1/orders", json=order_payload(), headers={"Idempotency-Key": "order-replay"})
     second = client.post("/v1/orders", json=order_payload(), headers={"Idempotency-Key": "order-replay"})
 
-    assert first.status_code == 201
-    assert second.status_code == 201
+    assert first.status_code == 202
+    assert second.status_code == 202
     assert first.get_json() == second.get_json()
     assert second.headers["Idempotency-Replayed"] == "true"
     assert len(repo.by_key) == 1
+    assert len(repo.sagas) == 1
+    assert len(repo.events) == 1
+    assert repo.events[0].eventType == "CommandePassee"
+
+
+def test_order_status_lookup_returns_running_order():
+    repo = Orders()
+    client = make_app(repo=repo).test_client()
+    accepted = client.post("/v1/orders", json=order_payload(), headers={"Idempotency-Key": "status-order"})
+
+    response = client.get(accepted.headers["Location"])
+
+    assert response.status_code == 200
+    assert response.get_json()["status"] == "EN_COURS"
+
+
+def test_order_status_lookup_returns_404_only_for_unknown_order():
+    response = make_app().test_client().get("/v1/orders/missing/status")
+
+    assert response.status_code == 404
+    assert response.get_json()["code"] == "order_not_found"
 
 
 def test_same_order_key_with_different_payload_returns_conflict():

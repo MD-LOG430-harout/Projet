@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortabilityOrderStateChangeEvent.order-rejected.json",
+  "title": "PortabilityOrderStateChangeEvent (order-rejected)",
+  "description": "Refus final — topic portability.order-rejected — producteur Hub",
+  "allOf": [
+    { "$ref": "EventNotification.envelope.json" },
+    {
+      "type": "object",
+      "properties": {
+        "@type": { "const": "PortabilityOrderStateChangeEvent" },
+        "eventType": { "const": "PortabilityOrderStateChangeEvent" },
+        "event": {
+          "type": "object",
+          "required": ["portabilityOrder"],
+          "properties": {
+            "portabilityOrder": {
+              "allOf": [
+                { "$ref": "PortabilityOrderEventRef.json" },
+                {
+                  "required": ["id", "href", "status", "rejectionReason"],
+                  "properties": {
+                    "status": { "const": "rejected" }
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "@type": "PortabilityOrderStateChangeEvent",
+      "@baseType": "Event",
+      "id": "evt-hub-e5f6g7",
+      "href": "https://hub.example.com/tmf-api/eventManagement/v4/event/evt-hub-e5f6g7",
+      "eventId": "PORT-EVT-20260721-004",
+      "eventTime": "2026-07-21T14:35:01.000Z",
+      "eventType": "PortabilityOrderStateChangeEvent",
+      "correlationId": "PORT-20260721-ABC123",
+      "domain": "portability",
+      "title": "Portabilité refusée",
+      "description": "La validation OUT a été refusée",
+      "priority": "2",
+      "timeOccurred": "2026-07-21T14:35:01.000Z",
+      "source": {
+        "@type": "EntityRef",
+        "id": "PortabilityHub",
+        "href": "https://hub.example.com",
+        "@referredType": "Application"
+      },
+      "event": {
+        "portabilityOrder": {
+          "@type": "PortabilityOrderRef",
+          "@referredType": "PortabilityOrder",
+          "id": "PORT-20260721-ABC123",
+          "href": "https://hub.example.com/portability/order/PORT-20260721-ABC123",
+          "number": "5145551234",
+          "status": "rejected",
+          "recipientOperator": "BSS1",
+          "currentOperator": "BSS2",
+          "rejectionReason": "Account mismatch",
+          "customerName": "Pierre Gauthier",
+          "accountId": "CUST-98765"
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,607 @@
+{
+  "info": {
+    "_postman_id": "portability-hub-prototype",
+    "name": "Portability Hub — Prototype",
+    "description": "Flux complet port-in via Hub Gateway (`http://localhost:8282`).\n\n**Prérequis** : `docker compose up -d --build`\n\n## Guide rapide — façon la plus simple\n\n> **Note** : la manière la plus simple d'utiliser le Portability Hub est de :\n> 1. **Demander la portabilité** — `POST /portability/order` (création port-in par BSS1)\n> 2. **Consulter l'ordre** — `GET /portability/order/{orderId}` pour voir s'il a changé d'état (`pending_out_validation` → `approved` / `rejected` / `port_completed`)\n> 3. **Simuler la validation OUT** — si l'ordre est toujours en attente, appeler `POST /portability/order/{orderId}/validate-out` (BSS2) pour faire évoluer l'état ; refaire un `GET` pour confirmer le changement\n>\n> En production, BSS2 reçoit un webhook et appelle `validate-out` de son côté ; en local/Postman, vous pouvez appeler `validate-out` directement sur le Hub pour simuler cette étape.\n\n## Flux REST (dossier « Flux port-in »)\n1. Enregistrer abonnements Hub BSS1 + BSS2\n2. Créer ordre port-in → `orderId` capturé automatiquement\n3. Consulter ordre · Validate-out · Re-consulter\n\n## Webhooks dans Postman\n\nPostman ne « écoute » pas en arrière-plan comme un serveur local, mais offre **deux approches** :\n\n### A — Simuler l'envoi Hub → BSS (local)\nDossier **« Webhooks Hub → BSS (local) »** : requêtes `POST` vers les BSS Gateways (`8291` / `8292`) avec payloads TMF Event Management v4.\n\n### B — Recevoir les vrais webhooks du Hub dans Postman\n1. Collection → **⋯** → **Integrations** → **Webhooks** → **Add webhook**\n2. Choisir le dossier **« Webhook entrant — traiter payload »**\n3. Copier l'URL générée (`https://webhook.postman.co/...`) dans la variable `postmanWebhookUrl`\n4. Dossier **« Hub avec callback Postman »** : enregistrer un abonnement Hub pointant vers cette URL\n5. Créer un ordre port-in : le Hub POSTe le webhook → Postman exécute le dossier et stocke `lastWebhookEventType` / `lastWebhookOrderId`\n\n> **Docker + Postman cloud** : le Hub (conteneur) doit joindre Internet pour atteindre `webhook.postman.co`. Les callbacks locaux Docker utilisent `host.docker.internal` (variables `bss1WebhookCallback` / `bss2WebhookCallback`).\n\n**Authentification** : aucune (JWT désactivé dans ce prototype).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "hubBaseUrl",
+      "value": "http://localhost:8282"
+    }
+  ],
+  "item": [
+    {
+      "name": "Ordres de portabilité",
+      "item": [
+        {
+          "name": "GET — Lister tous les ordres",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const orders = pm.response.json();",
+                  "pm.test('réponse est un tableau', () => pm.expect(orders).to.be.an('array'));",
+                  "if (orders.length > 0 && orders[0].orderId) {",
+                  "  pm.environment.set('orderId', orders[0].orderId);",
+                  "  console.log('Premier orderId:', orders[0].orderId);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/order",
+            "description": "Retourne tous les ordres de portabilité enregistrés dans le Hub."
+          },
+          "response": []
+        },
+        {
+          "name": "GET — Lister ordres (filtre status)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{hubBaseUrl}}/portability/order?status=pending_out_validation",
+              "host": ["{{hubBaseUrl}}"],
+              "path": ["portability", "order"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "pending_out_validation",
+                  "description": "pending_out_validation | approved | rejected | port_completed | cancelled"
+                }
+              ]
+            },
+            "description": "Filtre optionnel par statut (ex. ordres en attente de validation OUT pour BSS2)."
+          },
+          "response": []
+        },
+        {
+          "name": "GET — Consulter ordre par id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/order/{{orderId}}",
+            "description": "Détail d'un ordre (variable `orderId`)."
+          },
+          "response": []
+        }
+      ],
+      "description": "Consultation des ordres de portabilité via l'API Hub.\n\n**Astuce** : après `POST /portability/order`, utilisez `GET /portability/order/{orderId}` pour vérifier l'état courant. Tant que le statut est `pending_out_validation`, simulez la réponse BSS2 avec `POST .../validate-out`, puis refaites un `GET` pour voir le nouvel état."
+    },
+    {
+      "name": "Flux port-in",
+      "item": [
+        {
+          "name": "1 — Enregistrer Hub BSS1",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.environment.set('hubSubscriptionIdBss1', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback\": \"{{bss1WebhookCallback}}\",\n  \"query\": \"PortabilityOrderStateChangeEvent\",\n  \"@type\": \"Hub\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/hub",
+            "description": "Abonnement TMF Hub pour BSS1 (webhooks StateChange)."
+          },
+          "response": []
+        },
+        {
+          "name": "2 — Enregistrer Hub BSS2",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "if (body.id) pm.environment.set('hubSubscriptionIdBss2', body.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback\": \"{{bss2WebhookCallback}}\",\n  \"query\": \"PortabilityOrderOutValidationNeededEvent,PortabilityOrderStateChangeEvent\",\n  \"@type\": \"Hub\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/hub",
+            "description": "Abonnement TMF Hub pour BSS2 (OutValidationNeeded + StateChange)."
+          },
+          "response": []
+        },
+        {
+          "name": "3 — Créer ordre port-in (BSS1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('orderId présent', () => pm.expect(body.orderId).to.be.a('string').and.not.empty);",
+                  "pm.environment.set('orderId', body.orderId);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"port-in\",\n  \"number\": \"5145551234\",\n  \"recipientOperator\": \"BSS1\",\n  \"currentOperator\": \"BSS2\",\n  \"customerInfo\": {\n    \"name\": \"Pierre Gauthier\",\n    \"accountId\": \"CUST-98765\"\n  },\n  \"requestedPortDate\": \"2026-07-21T12:00:00Z\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/order",
+            "description": "Crée un ordre et déclenche `PortabilityOrderOutValidationNeededEvent` vers BSS2."
+          },
+          "response": []
+        },
+        {
+          "name": "4 — Consulter ordre",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('orderId correspond', () => pm.expect(body.orderId).to.eql(pm.environment.get('orderId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/order/{{orderId}}",
+            "description": "Récupère l'état courant de l'ordre."
+          },
+          "response": []
+        },
+        {
+          "name": "5 — Validate-out (BSS2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('statut approved', () => pm.expect(body.status).to.eql('approved'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"approved\",\n  \"notes\": \"Tout est conforme de notre côté\",\n  \"rejectionReason\": null,\n  \"confirmedPortDate\": \"2026-07-21T12:00:00Z\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/order/{{orderId}}/validate-out",
+            "description": "Validation OUT par l'ancien opérateur (BSS2). Déclenche `PortabilityOrderStateChangeEvent`."
+          },
+          "response": []
+        },
+        {
+          "name": "6 — Consulter ordre (après validation)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/order/{{orderId}}",
+            "description": "Vérifie le statut `approved` et la date confirmée."
+          },
+          "response": []
+        },
+        {
+          "name": "7 — GET Activity log (webhooks simulateur)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const entries = pm.response.json();",
+                  "pm.test('journal non vide après flux', () => pm.expect(entries.length).to.be.above(0));",
+                  "const webhooks = entries.filter(e => String(e.label || '').includes('Event'));",
+                  "console.log('Webhooks dans le journal:', webhooks.length);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/activity",
+            "description": "Affiche les webhooks reçus par le simulateur (via BSS GW) pendant le flux."
+          },
+          "response": []
+        }
+      ],
+      "description": "Scénario complet port-in sans authentification JWT.\n\n**Boucle simple** : créer l'ordre (3) → `GET` pour lire l'état (4) → `validate-out` pour simuler BSS2 (5) → `GET` à nouveau (6) pour confirmer le changement d'état."
+    },
+    {
+      "name": "Webhooks Hub → BSS (local)",
+      "item": [
+        {
+          "name": "POST OutValidationNeeded → BSS2 GW",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('orderId')) {",
+                  "  pm.environment.set('orderId', 'PORT-EXAMPLE-001');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Webhook accepté (200)', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@type\": \"PortabilityOrderOutValidationNeededEvent\",\n  \"@baseType\": \"Event\",\n  \"id\": \"evt-postman-out-001\",\n  \"href\": \"https://hub.portabilite.com/tmf-api/eventManagement/v4/event/evt-postman-out-001\",\n  \"eventId\": \"PORT-EVT-POSTMAN-001\",\n  \"eventTime\": \"2026-07-21T14:32:15.123Z\",\n  \"eventType\": \"PortabilityOrderOutValidationNeededEvent\",\n  \"correlationId\": \"{{orderId}}\",\n  \"domain\": \"portability\",\n  \"title\": \"Validation OUT requise\",\n  \"description\": \"Payload simulé depuis Postman\",\n  \"priority\": \"2\",\n  \"timeOccurred\": \"2026-07-21T14:32:10Z\",\n  \"source\": {\n    \"@type\": \"EntityRef\",\n    \"id\": \"PortabilityHub\",\n    \"href\": \"https://hub.portabilite.com\",\n    \"@referredType\": \"Application\"\n  },\n  \"event\": {\n    \"portabilityOrder\": {\n      \"@type\": \"PortabilityOrderRef\",\n      \"@referredType\": \"PortabilityOrder\",\n      \"id\": \"{{orderId}}\",\n      \"href\": \"{{hubBaseUrl}}/portability/order/{{orderId}}\",\n      \"number\": \"5145551234\",\n      \"status\": \"pending_out_validation\",\n      \"recipientOperator\": \"BSS1\",\n      \"currentOperator\": \"BSS2\",\n      \"requestedPortDate\": \"2026-07-21T12:00:00Z\",\n      \"customerName\": \"Pierre Gauthier\",\n      \"accountId\": \"CUST-98765\"\n    }\n  }\n}"
+            },
+            "url": "{{bss2GatewayUrl}}/webhooks/portability",
+            "description": "Simule ce que le Hub envoie à BSS2 après création d'un ordre port-in."
+          },
+          "response": []
+        },
+        {
+          "name": "POST StateChange (approved) → BSS1 GW",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('orderId')) {",
+                  "  pm.environment.set('orderId', 'PORT-EXAMPLE-001');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Webhook accepté (200)', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@type\": \"PortabilityOrderStateChangeEvent\",\n  \"@baseType\": \"Event\",\n  \"id\": \"evt-postman-state-001\",\n  \"href\": \"https://hub.portabilite.com/tmf-api/eventManagement/v4/event/evt-postman-state-001\",\n  \"eventId\": \"PORT-EVT-POSTMAN-002\",\n  \"eventTime\": \"2026-07-21T15:00:00.000Z\",\n  \"eventType\": \"PortabilityOrderStateChangeEvent\",\n  \"correlationId\": \"{{orderId}}\",\n  \"domain\": \"portability\",\n  \"title\": \"Portabilité approuvée\",\n  \"description\": \"Payload simulé depuis Postman\",\n  \"priority\": \"3\",\n  \"timeOccurred\": \"2026-07-21T15:00:00.000Z\",\n  \"source\": {\n    \"@type\": \"EntityRef\",\n    \"id\": \"PortabilityHub\",\n    \"href\": \"https://hub.portabilite.com\",\n    \"@referredType\": \"Application\"\n  },\n  \"event\": {\n    \"portabilityOrder\": {\n      \"@type\": \"PortabilityOrderRef\",\n      \"@referredType\": \"PortabilityOrder\",\n      \"id\": \"{{orderId}}\",\n      \"href\": \"{{hubBaseUrl}}/portability/order/{{orderId}}\",\n      \"status\": \"approved\",\n      \"confirmedPortDate\": \"2026-07-21T12:00:00Z\",\n      \"customerName\": \"Pierre Gauthier\",\n      \"accountId\": \"CUST-98765\"\n    }\n  }\n}"
+            },
+            "url": "{{bss1GatewayUrl}}/webhooks/portability",
+            "description": "Simule un StateChange `approved` vers BSS1."
+          },
+          "response": []
+        },
+        {
+          "name": "POST StateChange (approved) → BSS2 GW",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "if (!pm.environment.get('orderId')) {",
+                  "  pm.environment.set('orderId', 'PORT-EXAMPLE-001');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Webhook accepté (200)', () => pm.response.to.have.status(200));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"@type\": \"PortabilityOrderStateChangeEvent\",\n  \"@baseType\": \"Event\",\n  \"id\": \"evt-postman-state-002\",\n  \"href\": \"https://hub.portabilite.com/tmf-api/eventManagement/v4/event/evt-postman-state-002\",\n  \"eventId\": \"PORT-EVT-POSTMAN-003\",\n  \"eventTime\": \"2026-07-21T15:00:00.000Z\",\n  \"eventType\": \"PortabilityOrderStateChangeEvent\",\n  \"correlationId\": \"{{orderId}}\",\n  \"domain\": \"portability\",\n  \"title\": \"Portabilité approuvée\",\n  \"description\": \"Payload simulé depuis Postman\",\n  \"priority\": \"3\",\n  \"timeOccurred\": \"2026-07-21T15:00:00.000Z\",\n  \"source\": {\n    \"@type\": \"EntityRef\",\n    \"id\": \"PortabilityHub\",\n    \"href\": \"https://hub.portabilite.com\",\n    \"@referredType\": \"Application\"\n  },\n  \"event\": {\n    \"portabilityOrder\": {\n      \"@type\": \"PortabilityOrderRef\",\n      \"@referredType\": \"PortabilityOrder\",\n      \"id\": \"{{orderId}}\",\n      \"href\": \"{{hubBaseUrl}}/portability/order/{{orderId}}\",\n      \"status\": \"approved\",\n      \"confirmedPortDate\": \"2026-07-21T12:00:00Z\",\n      \"customerName\": \"Pierre Gauthier\",\n      \"accountId\": \"CUST-98765\"\n    }\n  }\n}"
+            },
+            "url": "{{bss2GatewayUrl}}/webhooks/portability",
+            "description": "Simule un StateChange `approved` vers BSS2."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Activity log après webhooks",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/activity",
+            "description": "Vérifie que les webhooks simulés apparaissent dans le journal du simulateur."
+          },
+          "response": []
+        }
+      ],
+      "description": "Envoyer manuellement des payloads webhook TMF vers les BSS Gateways locales (comme le ferait le Hub)."
+    },
+    {
+      "name": "Hub avec callback Postman",
+      "item": [
+        {
+          "name": "Enregistrer Hub → callback Postman (BSS2)",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "const url = pm.environment.get('postmanWebhookUrl');",
+                  "if (!url) {",
+                  "  throw new Error('Renseignez postmanWebhookUrl (Collection → Integrations → Webhooks)');",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"callback\": \"{{postmanWebhookUrl}}\",\n  \"query\": \"PortabilityOrderOutValidationNeededEvent,PortabilityOrderStateChangeEvent\",\n  \"@type\": \"Hub\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/hub",
+            "description": "Enregistre le Hub pour envoyer les webhooks vers votre URL Postman (`webhook.postman.co`). Puis créez un ordre port-in : Postman recevra le POST."
+          },
+          "response": []
+        },
+        {
+          "name": "Créer ordre (déclenche webhook vers Postman)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('orderId', pm.response.json().orderId);",
+                  "console.log('Attendez quelques secondes puis vérifiez lastWebhookEventType dans l\\'environnement.');"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"requestType\": \"port-in\",\n  \"number\": \"5145559999\",\n  \"recipientOperator\": \"BSS1\",\n  \"currentOperator\": \"BSS2\",\n  \"customerInfo\": {\n    \"name\": \"Test Postman Webhook\",\n    \"accountId\": \"CUST-POSTMAN\"\n  },\n  \"requestedPortDate\": \"2026-07-21T12:00:00Z\"\n}"
+            },
+            "url": "{{hubBaseUrl}}/portability/order",
+            "description": "Après enregistrement Hub avec callback Postman, le Hub envoie `PortabilityOrderOutValidationNeededEvent` à votre URL webhook."
+          },
+          "response": []
+        }
+      ],
+      "description": "Configurer le Hub pour livrer les webhooks directement dans Postman (nécessite compte Postman + webhook cloud)."
+    },
+    {
+      "name": "Webhook entrant — traiter payload",
+      "item": [
+        {
+          "name": "Parser webhook reçu",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "const raw = pm.variables.get('request')",
+                  "  || pm.collectionVariables.get('request')",
+                  "  || pm.environment.get('request');",
+                  "",
+                  "pm.test('Payload webhook présent', () => {",
+                  "  pm.expect(raw, 'Configurez un webhook Postman sur ce dossier').to.be.a('string').and.not.empty;",
+                  "});",
+                  "",
+                  "if (raw) {",
+                  "  const payload = JSON.parse(raw);",
+                  "  pm.environment.set('lastWebhookEventType', payload.eventType || '');",
+                  "  pm.environment.set('lastWebhookOrderId',",
+                  "    payload.correlationId || payload.event?.portabilityOrder?.id || '');",
+                  "  console.log('Webhook reçu:', payload.eventType);",
+                  "  console.log(JSON.stringify(payload, null, 2));",
+                  "  pm.test('eventType TMF connu', () => {",
+                  "    pm.expect(['PortabilityOrderOutValidationNeededEvent',",
+                  "      'PortabilityOrderStateChangeEvent']).to.include(payload.eventType);",
+                  "  });",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/actuator/health",
+            "description": "Cette requête est **déclenchée par le webhook Postman** (pas exécutée manuellement en principe).\n\nPostman injecte le corps du POST entrant dans la variable `request`. Le script Tests extrait `eventType` et `orderId`.\n\n**Setup** : Collection → ⋯ → Integrations → Webhooks → Add → cibler ce dossier."
+          },
+          "response": []
+        }
+      ],
+      "description": "Dossier à lier à votre URL `webhook.postman.co`. Quand le Hub POSTe un événement, Postman exécute ce dossier."
+    },
+    {
+      "name": "Hub subscriptions",
+      "item": [
+        {
+          "name": "GET Hub subscription by id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/hub/{{hubSubscriptionIdBss1}}"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Hub subscription",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{hubBaseUrl}}/portability/hub/{{hubSubscriptionIdBss1}}"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Simulateur",
+      "item": [
+        {
+          "name": "GET Config simulateur",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/config"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Hub registrations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/hub-registrations"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Pending orders (BSS2)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/pending-orders"
+          },
+          "response": []
+        },
+        {
+          "name": "GET Activity log",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/activity"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Simulate webhook BSS1",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/simulate-webhook/bss1"
+          },
+          "response": []
+        },
+        {
+          "name": "POST Simulate webhook BSS2",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/simulate-webhook/bss2"
+          },
+          "response": []
+        },
+        {
+          "name": "DELETE Reset simulateur",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/api/reset"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Hub Gateway health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/actuator/health"
+          },
+          "response": []
+        },
+        {
+          "name": "Simulateur UI",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{hubBaseUrl}}/simulator/"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

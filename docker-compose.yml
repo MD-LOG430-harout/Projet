@@ -1,4 +1,43 @@
 services:
+  kafka:
+    image: apache/kafka:3.8.0
+    ports:
+      - "${KAFKA_PORT:-29092}:29092"
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: INTERNAL://:9092,CONTROLLER://:9093,EXTERNAL://:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_NUM_PARTITIONS: 3
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list >/dev/null 2>&1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  kafka-init:
+    image: apache/kafka:3.8.0
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        for topic in commande-passee.v1 paiement-autorise.v1 paiement-refuse.v1 paiement-rembourse.v1 ligne-activee.v1 activation-echouee.v1 commande-confirmee.v1 commande-annulee.v1 portabilite-demandee.v1 numero-porte.v1 portabilite-echouee.v1 commande-passee.v1.dlq paiement-autorise.v1.dlq paiement-refuse.v1.dlq paiement-rembourse.v1.dlq ligne-activee.v1.dlq activation-echouee.v1.dlq commande-confirmee.v1.dlq commande-annulee.v1.dlq portabilite-demandee.v1.dlq numero-porte.v1.dlq portabilite-echouee.v1.dlq; do
+          /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --create --if-not-exists --topic "$$topic" --partitions 3 --replication-factor 1
+        done
+
   mysql:
     image: mysql:8.4
     environment:
@@ -54,6 +93,102 @@ services:
       timeout: 5s
       retries: 5
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.60
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.107.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/otel/collector-config.yaml:/etc/otelcol/config.yaml:ro
+    depends_on:
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "/otelcol-contrib", "components"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  portabilityhub-postgres:
+    image: postgres:16.4
+    environment:
+      POSTGRES_DB: portabilityhub_sync
+      POSTGRES_USER: ${PORTABILITY_DB_USER:-portability}
+      POSTGRES_PASSWORD: ${PORTABILITY_DB_PASSWORD:?Set PORTABILITY_DB_PASSWORD in .env}
+    volumes:
+      - portabilityhub-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  portabilityhub-sync:
+    build:
+      context: ./external/portabilityhub/portabilityhub-deploy/portabilityhub-deploy
+      dockerfile: Dockerfile
+    environment:
+      SERVER_PORT: 8082
+      SPRING_PROFILES_ACTIVE: simulator
+      DB_URL: jdbc:postgresql://portabilityhub-postgres:5432/portabilityhub_sync
+      DB_USER: ${PORTABILITY_DB_USER:-portability}
+      DB_PASSWORD: ${PORTABILITY_DB_PASSWORD:?Set PORTABILITY_DB_PASSWORD in .env}
+      HUB_PUBLIC_BASE_URL: http://portabilityhub-gateway:8080
+      WEBHOOK_JWT_ENABLED: ${PORTABILITY_WEBHOOK_JWT_ENABLED:-false}
+    depends_on:
+      portabilityhub-postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  portabilityhub-gateway:
+    build:
+      context: ./external/portabilityhub/portabilityhub-deploy/portabilityhub-deploy/gateway
+      dockerfile: Dockerfile
+    environment:
+      SERVER_PORT: 8080
+      GATEWAY_HUB_URI: http://portabilityhub-sync:8082
+      GATEWAY_DEV_TOKEN_ENABLED: "false"
+    ports:
+      - "${PORTABILITY_HUB_PORT:-8282}:8080"
+    depends_on:
+      portabilityhub-sync:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  portabilityhub-init:
+    image: curlimages/curl:8.10.1
+    depends_on:
+      portabilityhub-gateway:
+        condition: service_healthy
+      svc-lignes-services:
+        condition: service_healthy
+    command:
+      - sh
+      - -ec
+      - |
+        until curl -fsS http://portabilityhub-gateway:8080/actuator/health >/dev/null; do sleep 2; done
+        curl -fsS -X POST http://portabilityhub-gateway:8080/portability/hub \
+          -H 'Content-Type: application/json' \
+          -d '{"callback":"http://svc-lignes-services:5000/v1/webhooks/portability","query":"PortabilityOrderStateChangeEvent","@type":"Hub"}'
+
   svc-conformite-audit:
     build:
       context: .
@@ -63,10 +198,17 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: conformite_audit
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      AUDIT_EVENT_RUNTIME_ENABLED: ${AUDIT_EVENT_RUNTIME_ENABLED:-true}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_GROUP_ID: svc-conformite-audit
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       mysql-bootstrap:
         condition: service_completed_successfully
     healthcheck:
@@ -84,6 +226,8 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: clients_identite
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
@@ -108,6 +252,8 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: catalogue_offres
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
@@ -133,16 +279,33 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: lignes_services
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
       HLR_ENABLED: ${HLR_ENABLED:-false}
       HLR_FORCE_FAILURE: ${HLR_FORCE_FAILURE:-false}
+      LINE_EVENT_RUNTIME_ENABLED: ${LINE_EVENT_RUNTIME_ENABLED:-true}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_GROUP_ID: svc-lignes-services
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-500}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
       FREE5GC_WEBUI_URL: ${FREE5GC_WEBUI_URL:?Set FREE5GC_WEBUI_URL in .env}
       FREE5GC_WEBUI_USERNAME: ${FREE5GC_WEBUI_USERNAME:?Set FREE5GC_WEBUI_USERNAME in .env}
       FREE5GC_WEBUI_PASSWORD: ${FREE5GC_WEBUI_PASSWORD:?Set FREE5GC_WEBUI_PASSWORD in .env}
       FREE5GC_PLMN_ID: ${FREE5GC_PLMN_ID:?Set FREE5GC_PLMN_ID in .env}
+      FREE5GC_SUBSCRIBER_PERMANENT_KEY: ${FREE5GC_SUBSCRIBER_PERMANENT_KEY:-}
+      FREE5GC_SUBSCRIBER_OPC: ${FREE5GC_SUBSCRIBER_OPC:-}
+      FREE5GC_SUBSCRIBER_SEQUENCE_NUMBER: ${FREE5GC_SUBSCRIBER_SEQUENCE_NUMBER:-}
+      FREE5GC_SUBSCRIBER_AMF: ${FREE5GC_SUBSCRIBER_AMF:-8000}
+      PORTABILITY_HUB_URL: ${PORTABILITY_HUB_URL:-http://portabilityhub-gateway:8080}
+      PORTABILITY_RECIPIENT_OPERATOR: ${PORTABILITY_RECIPIENT_OPERATOR:-CanTelcoX}
+      PORTABILITY_LEAD_TIME_HOURS: ${PORTABILITY_LEAD_TIME_HOURS:-24}
+      CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       mysql-bootstrap:
         condition: service_completed_successfully
     healthcheck:
@@ -160,6 +323,8 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: commandes_activations
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
@@ -169,7 +334,14 @@ services:
       LINES_SERVICE_URL: http://svc-lignes-services:5000
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
       COMMAND_AUDIT_LEVEL: ${COMMAND_AUDIT_LEVEL:-summary}
+      COMMAND_EVENT_RUNTIME_ENABLED: ${COMMAND_EVENT_RUNTIME_ENABLED:-true}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_GROUP_ID: svc-commandes-activations
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-500}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       mysql-bootstrap:
         condition: service_completed_successfully
       svc-clients-identite:
@@ -195,13 +367,23 @@ services:
       MYSQL_USER: ${MYSQL_USER:?Set MYSQL_USER in .env}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}
       MYSQL_DATABASE: usage_facturation
+      OTEL_SDK_DISABLED: ${OTEL_SDK_DISABLED:-false}
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      PAYMENT_EVENT_RUNTIME_ENABLED: ${PAYMENT_EVENT_RUNTIME_ENABLED:-true}
+      PAYMENT_GATEWAY_FORCE_FAILURE: ${PAYMENT_GATEWAY_FORCE_FAILURE:-false}
+      PAYMENT_GATEWAY_FORCE_REFUSAL: ${PAYMENT_GATEWAY_FORCE_REFUSAL:-false}
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS:-kafka:9092}
+      KAFKA_GROUP_ID: svc-usage-facturation
+      OUTBOX_POLL_INTERVAL_MS: ${OUTBOX_POLL_INTERVAL_MS:-500}
+      OUTBOX_BATCH_SIZE: ${OUTBOX_BATCH_SIZE:-100}
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-2}
       GUNICORN_THREADS: ${GUNICORN_THREADS:-4}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-30}
       CUSTOMER_SERVICE_URL: http://svc-clients-identite:5000
       AUDIT_SERVICE_URL: http://svc-conformite-audit:5000
-      PAYMENT_GATEWAY_FORCE_FAILURE: ${PAYMENT_GATEWAY_FORCE_FAILURE:-false}
     depends_on:
+      kafka-init:
+        condition: service_completed_successfully
       mysql-bootstrap:
         condition: service_completed_successfully
       svc-clients-identite:
@@ -295,4 +477,6 @@ services:
 
 volumes:
   mysql-data:
+  kafka-data:
   grafana-data:
+  portabilityhub-data:

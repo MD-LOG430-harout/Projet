@@ -16,5 +16,7 @@ class Order:
     idempotency_key: str
     request_hash: str
     response_body: dict
-    http_status: int = 201
+    saga_id: str
+    current_operator: str | None = None
+    http_status: int = 202
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

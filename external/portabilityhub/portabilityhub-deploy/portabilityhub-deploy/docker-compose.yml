@@ -1,0 +1,81 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: portabilityhub-sync-postgres
+    environment:
+      POSTGRES_DB: portabilityhub_sync
+      POSTGRES_USER: portability
+      POSTGRES_PASSWORD: portability
+    ports:
+      - "5433:5432"
+    volumes:
+      - portabilityhub-sync-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U portability -d portabilityhub_sync"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  portabilityhub-sync:
+    build: .
+    container_name: portabilityhub-sync
+    environment:
+      SERVER_PORT: 8082
+      SPRING_PROFILES_ACTIVE: simulator
+      SIMULATOR_PUBLIC_BASE_URL: http://localhost:8282
+      HUB_PUBLIC_BASE_URL: http://localhost:8282
+      SIMULATOR_USE_BSS_GATEWAY: "true"
+      WEBHOOK_JWT_ENABLED: "false"
+      BSS1_GATEWAY_PUBLIC_URL: http://localhost:8291
+      BSS2_GATEWAY_PUBLIC_URL: http://localhost:8292
+      BSS1_GATEWAY_INTERNAL_URL: http://bss1-gateway:8080
+      BSS2_GATEWAY_INTERNAL_URL: http://bss2-gateway:8080
+      DB_URL: jdbc:postgresql://postgres:5432/portabilityhub_sync
+      DB_USER: portability
+      DB_PASSWORD: portability
+    depends_on:
+      postgres:
+        condition: service_healthy
+    expose:
+      - "8082"
+
+  portabilityhub-gateway:
+    build: ./gateway
+    container_name: portabilityhub-gateway
+    environment:
+      SERVER_PORT: 8080
+      GATEWAY_HUB_URI: http://portabilityhub-sync:8082
+      GATEWAY_DEV_TOKEN_ENABLED: "false"
+    depends_on:
+      - portabilityhub-sync
+    ports:
+      - "8282:8080"
+
+  bss1-gateway:
+    build: ./bss-gateway
+    container_name: bss1-gateway
+    environment:
+      SERVER_PORT: 8080
+      BSS_GATEWAY_OPERATOR: BSS1
+      BSS_GATEWAY_BACKEND_HOST: http://portabilityhub-sync:8082
+      BSS_GATEWAY_BACKEND_PATH: /simulator/api/webhooks/bss1
+    depends_on:
+      - portabilityhub-sync
+    ports:
+      - "8291:8080"
+
+  bss2-gateway:
+    build: ./bss-gateway
+    container_name: bss2-gateway
+    environment:
+      SERVER_PORT: 8080
+      BSS_GATEWAY_OPERATOR: BSS2
+      BSS_GATEWAY_BACKEND_HOST: http://portabilityhub-sync:8082
+      BSS_GATEWAY_BACKEND_PATH: /simulator/api/webhooks/bss2
+    depends_on:
+      - portabilityhub-sync
+    ports:
+      - "8292:8080"
+
+volumes:
+  portabilityhub-sync-pgdata:

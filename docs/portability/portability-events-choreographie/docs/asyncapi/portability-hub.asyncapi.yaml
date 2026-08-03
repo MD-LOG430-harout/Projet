@@ -1,0 +1,368 @@
+asyncapi: '2.6.0'
+id: 'urn:ets:asyncapi:portability-hub:1.3'
+
+info:
+  title: Hub de Portabilité — Événements Kafka (production)
+  version: "1.3"
+  description: |
+    Contrat **AsyncAPI** du Hub de Portabilité — version événementielle (production).
+    Source : *Hub de Portabilité — Slide Deck Sources*, section 5.
+
+    Payloads : enveloppe **TMF Event Management v4** (`EventNotification`), alignée sur
+    le contrat REST (`docs/openapi/portability-hub.openapi.yaml` dans portabilityhub-sync).
+
+  contact:
+    name: Pierre Gauthier — ETS (LOG 430 / LOG 660)
+
+tags:
+  - name: portability
+    description: Cycle de vie portabilité IN/OUT
+
+servers:
+  kafka:
+    url: kafka:9092
+    protocol: kafka
+    description: Cluster Kafka production
+    bindings:
+      kafka:
+        bindingVersion: '0.4.0'
+
+defaultContentType: application/json
+
+channels:
+
+  portability.port-in-requested:
+    description: Demande initiale de port-in (producteur BSS1)
+    bindings:
+      kafka:
+        topic: portability.port-in-requested
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishPortInRequested
+      message:
+        $ref: '#/components/messages/PortInRequested'
+
+  portability.out-validation-needed:
+    description: Demande de validation au BSS2 (producteur Hub)
+    bindings:
+      kafka:
+        topic: portability.out-validation-needed
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishOutValidationNeeded
+      message:
+        $ref: '#/components/messages/OutValidationNeeded'
+
+  portability.out-validated:
+    description: Réponse approved/rejected de BSS2 (producteur BSS2)
+    bindings:
+      kafka:
+        topic: portability.out-validated
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishOutValidated
+      message:
+        $ref: '#/components/messages/OutValidated'
+
+  portability.order-approved:
+    description: Approbation finale (producteur Hub)
+    bindings:
+      kafka:
+        topic: portability.order-approved
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishOrderApproved
+      message:
+        $ref: '#/components/messages/OrderApproved'
+
+  portability.order-rejected:
+    description: Refus (producteur Hub)
+    bindings:
+      kafka:
+        topic: portability.order-rejected
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishOrderRejected
+      message:
+        $ref: '#/components/messages/OrderRejected'
+
+  portability.port-completed:
+    description: Transfert terminé à la date de portage (producteur Hub)
+    bindings:
+      kafka:
+        topic: portability.port-completed
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishPortCompleted
+      message:
+        $ref: '#/components/messages/PortCompleted'
+
+  portability.order-cancelled:
+    description: Compensation / annulation (producteur Hub ou BSS1)
+    bindings:
+      kafka:
+        topic: portability.order-cancelled
+        bindingVersion: '0.4.0'
+    publish:
+      operationId: publishOrderCancelled
+      message:
+        $ref: '#/components/messages/OrderCancelled'
+
+components:
+
+  messages:
+
+    PortInRequested:
+      name: PortInRequested
+      title: port-in-requested
+      summary: BSS1 publie une demande port-in
+      payload:
+        $ref: '#/components/schemas/PortInRequestedEvent'
+
+    OutValidationNeeded:
+      name: OutValidationNeeded
+      title: out-validation-needed
+      summary: Hub demande la validation OUT à BSS2
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderOutValidationNeededEvent'
+
+    OutValidated:
+      name: OutValidated
+      title: out-validated
+      summary: BSS2 répond approved ou rejected
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderOutValidatedEvent'
+
+    OrderApproved:
+      name: OrderApproved
+      title: order-approved
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderStateChangeEvent'
+
+    OrderRejected:
+      name: OrderRejected
+      title: order-rejected
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderStateChangeEvent'
+
+    PortCompleted:
+      name: PortCompleted
+      title: port-completed
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderStateChangeEvent'
+
+    OrderCancelled:
+      name: OrderCancelled
+      title: order-cancelled
+      payload:
+        $ref: '#/components/schemas/PortabilityOrderStateChangeEvent'
+
+  schemas:
+
+    EventNotification:
+      type: object
+      description: Notification TMF Event Management v4 (Event API)
+      required:
+        - '@type'
+        - id
+        - href
+        - eventId
+        - eventTime
+        - eventType
+        - correlationId
+        - domain
+        - event
+      properties:
+        '@type':
+          type: string
+          description: Discriminant TMF (identique à eventType)
+        '@baseType':
+          type: string
+          example: Event
+        id:
+          type: string
+          example: evt-hub-987654
+        href:
+          type: string
+          format: uri
+          example: https://hub.portabilite.com/tmf-api/eventManagement/v4/event/evt-hub-987654
+        eventId:
+          type: string
+          example: PORT-EVT-20260721-001
+        eventTime:
+          type: string
+          format: date-time
+        eventType:
+          type: string
+        correlationId:
+          type: string
+          description: Identifiant métier corrélé (orderId ou eventId port-in)
+        domain:
+          type: string
+          example: portability
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          example: "2"
+        timeOccurred:
+          type: string
+          format: date-time
+        source:
+          $ref: '#/components/schemas/EventSourceRef'
+        event:
+          $ref: '#/components/schemas/EventPayload'
+
+    EventSourceRef:
+      type: object
+      properties:
+        '@type':
+          type: string
+          example: EntityRef
+        id:
+          type: string
+          example: PortabilityHub
+        href:
+          type: string
+          format: uri
+        '@referredType':
+          type: string
+          example: Application
+
+    EventPayload:
+      type: object
+      properties:
+        portabilityOrder:
+          $ref: '#/components/schemas/PortabilityOrderEventRef'
+        outValidation:
+          $ref: '#/components/schemas/OutValidationResult'
+
+    PortabilityOrderEventRef:
+      type: object
+      required: [number]
+      properties:
+        '@type':
+          type: string
+          example: PortabilityOrderRef
+        '@referredType':
+          type: string
+          example: PortabilityOrder
+        id:
+          type: string
+        href:
+          type: string
+          format: uri
+        number:
+          type: string
+        status:
+          type: string
+        recipientOperator:
+          type: string
+        currentOperator:
+          type: string
+        requestedPortDate:
+          type: string
+          format: date
+        confirmedPortDate:
+          type: string
+          format: date
+        rejectionReason:
+          type: string
+        customerName:
+          type: string
+        accountId:
+          type: string
+
+    OutValidationResult:
+      type: object
+      required: [decision]
+      properties:
+        '@type':
+          type: string
+          example: OutValidationResult
+        decision:
+          type: string
+          enum: [approved, rejected]
+        confirmedPortDate:
+          type: string
+          format: date
+        rejectionReason:
+          type: string
+        notes:
+          type: string
+
+    PortInRequestedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventNotification'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              enum: [PortInRequestedEvent]
+            '@type':
+              type: string
+              enum: [PortInRequestedEvent]
+            event:
+              type: object
+              required: [portabilityOrder]
+              properties:
+                portabilityOrder:
+                  $ref: '#/components/schemas/PortabilityOrderEventRef'
+
+    PortabilityOrderOutValidationNeededEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventNotification'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              enum: [PortabilityOrderOutValidationNeededEvent]
+            '@type':
+              type: string
+              enum: [PortabilityOrderOutValidationNeededEvent]
+            event:
+              type: object
+              required: [portabilityOrder]
+              properties:
+                portabilityOrder:
+                  $ref: '#/components/schemas/PortabilityOrderEventRef'
+
+    PortabilityOrderOutValidatedEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventNotification'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              enum: [PortabilityOrderOutValidatedEvent]
+            '@type':
+              type: string
+              enum: [PortabilityOrderOutValidatedEvent]
+            event:
+              type: object
+              required: [portabilityOrder, outValidation]
+              properties:
+                portabilityOrder:
+                  $ref: '#/components/schemas/PortabilityOrderEventRef'
+                outValidation:
+                  $ref: '#/components/schemas/OutValidationResult'
+
+    PortabilityOrderStateChangeEvent:
+      allOf:
+        - $ref: '#/components/schemas/EventNotification'
+        - type: object
+          properties:
+            eventType:
+              type: string
+              enum: [PortabilityOrderStateChangeEvent]
+            '@type':
+              type: string
+              enum: [PortabilityOrderStateChangeEvent]
+            event:
+              type: object
+              required: [portabilityOrder]
+              properties:
+                portabilityOrder:
+                  $ref: '#/components/schemas/PortabilityOrderEventRef'

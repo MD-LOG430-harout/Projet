@@ -10,7 +10,7 @@ for name in list(sys.modules):
     if name == "app" or name.startswith("app."):
         del sys.modules[name]
 
-from app.main import create_app
+from app.main import create_app  # noqa: E402
 
 
 class Customers:

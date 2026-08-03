@@ -1,0 +1,56 @@
+spring:
+  application:
+    name: portabilityhub-sync
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/portabilityhub_sync}
+    username: ${DB_USER:portability}
+    password: ${DB_PASSWORD:portability}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+  jackson:
+    default-property-inclusion: non_null
+    serialization:
+      write-dates-as-timestamps: false
+
+server:
+  port: ${SERVER_PORT:8082}
+  forward-headers-strategy: framework
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    url: /openapi/portability-hub.openapi.yaml
+  api-docs:
+    enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+portabilityhubsync:
+  outbox:
+    poll-interval-ms: ${OUTBOX_POLL_MS:1000}
+    batch-size: ${OUTBOX_BATCH_SIZE:50}
+    max-attempts: ${OUTBOX_MAX_ATTEMPTS:5}
+  port-completion:
+    poll-interval-ms: ${PORT_COMPLETION_POLL_MS:60000}
+  hub:
+    public-base-url: ${HUB_PUBLIC_BASE_URL:http://localhost:8082}
+  webhook:
+    jwt:
+      enabled: ${WEBHOOK_JWT_ENABLED:false}
+      private-key-location: ${WEBHOOK_JWT_PRIVATE_KEY:classpath:jwt/hub-webhook-private.pem}
+      public-key-location: ${WEBHOOK_JWT_PUBLIC_KEY:classpath:jwt/hub-webhook-public.pem}
+      issuer: ${WEBHOOK_JWT_ISSUER:PortabilityHub}
+      audience: ${WEBHOOK_JWT_AUDIENCE:portability-webhook}
+  simulator:
+    enabled: ${SIMULATOR_ENABLED:false}
+    public-base-url: ${SIMULATOR_PUBLIC_BASE_URL:http://localhost:8082}

@@ -1,8 +1,8 @@
 openapi: 3.0.3
 info:
-  title: CanTelcoX Phase 1 API
-  version: 0.1.0
-  description: Phase 1 API for UC-01, UC-02, UC-03, UC-05, UC-06, and append-only audit evidence. Protected endpoints use a Bearer dev-session token issued after MFA and introspected by the NGINX API Gateway.
+  title: CanTelcoX Phase 2 API
+  version: 0.2.0
+  description: Phase 2 API retaining UC-01, UC-02, UC-03, UC-05, and UC-06 while adapting order completion to an event-driven saga.
 servers:
   - url: http://localhost:8080
 paths:
@@ -242,7 +242,7 @@ paths:
   /v1/orders:
     post:
       summary: Place an order for an active mobile offer
-      description: UC-05 Phase 1 order creation and validation. NEW_PLAN is implemented end to end as accepted order creation. CHANGE_PLAN and ADD_OPTION are documented as future work and blocked by simple compatibility validation. The endpoint validates customer eligibility, active offer, risk placeholder, idempotency, auditability, and simulated confirmation. It does not automatically trigger UC-03 activation.
+      description: Accepts UC-05 after synchronous customer and catalogue validation, then atomically stores the EN_COURS order, saga_state, and CommandePassee Outbox event. Completion is asynchronous.
       tags: [CommandesActivations]
       security:
         - bearerAuth: []
@@ -256,9 +256,13 @@ paths:
             schema:
               $ref: '#/components/schemas/OrderRequest'
       responses:
-        '201':
-          description: Order created, or replayed idempotently with the same response body
+        '202':
+          description: Order saga accepted, or replayed idempotently with the same response body
           headers:
+            Location:
+              schema:
+                type: string
+              description: Relative URI of the order status resource.
             Idempotency-Replayed:
               schema:
                 type: string
@@ -276,6 +280,48 @@ paths:
         '409':
           $ref: '#/components/responses/Error'
         '501':
+          $ref: '#/components/responses/Error'
+  /v1/orders/{orderId}/status:
+    get:
+      summary: Get the current order saga status
+      tags: [CommandesActivations]
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/TraceId'
+      responses:
+        '200':
+          description: Existing order, including a saga still in progress
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderStatusResponse'
+        '404':
+          $ref: '#/components/responses/Error'
+  /v1/webhooks/portability:
+    post:
+      summary: Receive a supplied PortabilityHub EventNotification
+      description: Idempotent technical callback. The Hub eventId and hub order identifier correlate the external status to the local portability aggregate.
+      tags: [LignesServices]
+      parameters:
+        - $ref: '#/components/parameters/Traceparent'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PortabilityEventNotification'
+      responses:
+        '200':
+          description: Callback applied, ignored as late, or acknowledged as a duplicate
+        '400':
+          $ref: '#/components/responses/Error'
+        '404':
           $ref: '#/components/responses/Error'
   /v1/invoices:
     get:
@@ -380,6 +426,13 @@ components:
       required: false
       schema:
         type: string
+    Traceparent:
+      name: traceparent
+      in: header
+      required: false
+      schema:
+        type: string
+        pattern: '^00-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}$'
     IdempotencyKey:
       name: Idempotency-Key
       in: header
@@ -644,41 +697,83 @@ components:
           type: string
           nullable: true
           description: Required for future CHANGE_PLAN and ADD_OPTION flows.
+        numberMode:
+          type: string
+          enum: [NEW, PORT_IN]
+          default: NEW
+        msisdnDemande:
+          type: string
+          description: Required for PORT_IN.
+        currentOperator:
+          type: string
+          description: Donor operator required for PORT_IN; it is not customer personal data.
       example:
         customerId: 150fa0f6-fd87-4f12-a152-41dcc29ea87d
         offerId: forfait-5g-20gb
         quantity: 1
         orderType: NEW_PLAN
+        numberMode: NEW
+    PortabilityEventNotification:
+      type: object
+      required: [eventId, eventTime, eventType, event]
+      properties:
+        eventId:
+          type: string
+        eventTime:
+          type: string
+          format: date-time
+        eventType:
+          type: string
+          enum: [PortabilityOrderOutValidationNeededEvent, PortabilityOrderStateChangeEvent]
+        correlationId:
+          type: string
+        event:
+          type: object
+          required: [portabilityOrder]
+          properties:
+            portabilityOrder:
+              type: object
+              required: [id, status]
+              properties:
+                id:
+                  type: string
+                number:
+                  type: string
+                status:
+                  type: string
+                  enum: [pending_out_validation, approved, rejected, port_completed, cancelled]
+                rejectionReason:
+                  type: string
+                  nullable: true
     OrderResponse:
       type: object
+      required: [orderId, status, sagaId, createdAt]
       properties:
         orderId:
           type: string
-        customerId:
-          type: string
-        offerId:
-          type: string
-        orderType:
-          type: string
-          enum: [NEW_PLAN, CHANGE_PLAN, ADD_OPTION]
         status:
           type: string
-          enum: [ACCEPTED, CREATED, REJECTED]
-        orchestrationStatus:
+          enum: [EN_COURS]
+        sagaId:
           type: string
-          enum: [READY_FOR_ACTIVATION]
-        confirmationStatus:
-          type: string
-          enum: [SIMULATED_SENT]
-        totalAmount:
-          type: number
-          format: float
-        currency:
-          type: string
-          enum: [CAD]
         createdAt:
           type: string
           format: date-time
+    OrderStatusResponse:
+      type: object
+      required: [orderId, status, sagaId]
+      properties:
+        orderId:
+          type: string
+        status:
+          type: string
+          enum: [EN_COURS, CONFIRMEE, ANNULEE]
+        sagaId:
+          type: string
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
     ActivationRequest:
       type: object
       required: [customerId, offerId, simType]

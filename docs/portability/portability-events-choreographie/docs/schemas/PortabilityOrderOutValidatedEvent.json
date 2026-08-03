@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortabilityOrderOutValidatedEvent.json",
+  "title": "PortabilityOrderOutValidatedEvent",
+  "description": "Réponse validation OUT — topic portability.out-validated — producteur BSS2",
+  "allOf": [
+    { "$ref": "EventNotification.envelope.json" },
+    {
+      "type": "object",
+      "properties": {
+        "@type": { "const": "PortabilityOrderOutValidatedEvent" },
+        "eventType": { "const": "PortabilityOrderOutValidatedEvent" },
+        "event": {
+          "type": "object",
+          "required": ["portabilityOrder", "outValidation"],
+          "properties": {
+            "portabilityOrder": {
+              "allOf": [
+                { "$ref": "PortabilityOrderEventRef.json" },
+                { "required": ["id", "href"] }
+              ]
+            },
+            "outValidation": {
+              "$ref": "OutValidationResult.json"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "@type": "PortabilityOrderOutValidatedEvent",
+      "@baseType": "Event",
+      "id": "evt-bss2-c3d4e5",
+      "href": "https://hub.example.com/tmf-api/eventManagement/v4/event/evt-bss2-c3d4e5",
+      "eventId": "PORT-EVT-20260721-003",
+      "eventTime": "2026-07-21T14:35:00.000Z",
+      "eventType": "PortabilityOrderOutValidatedEvent",
+      "correlationId": "PORT-20260721-ABC123",
+      "domain": "portability",
+      "title": "Validation OUT soumise",
+      "description": "BSS2 répond à la demande de validation OUT",
+      "priority": "2",
+      "timeOccurred": "2026-07-21T14:35:00.000Z",
+      "source": {
+        "@type": "EntityRef",
+        "id": "BSS2",
+        "href": "https://hub.example.com/bss2",
+        "@referredType": "Application"
+      },
+      "event": {
+        "portabilityOrder": {
+          "@type": "PortabilityOrderRef",
+          "@referredType": "PortabilityOrder",
+          "id": "PORT-20260721-ABC123",
+          "href": "https://hub.example.com/portability/order/PORT-20260721-ABC123",
+          "number": "5145551234",
+          "status": "pending_out_validation",
+          "recipientOperator": "BSS1",
+          "currentOperator": "BSS2",
+          "requestedPortDate": "2026-07-25",
+          "customerName": "Pierre Gauthier",
+          "accountId": "CUST-98765"
+        },
+        "outValidation": {
+          "@type": "OutValidationResult",
+          "decision": "approved",
+          "confirmedPortDate": "2026-07-25",
+          "notes": "Conforme de notre côté"
+        }
+      }
+    }
+  ]
+}

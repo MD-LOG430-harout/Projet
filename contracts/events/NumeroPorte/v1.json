@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://cantelcox.local/contracts/events/NumeroPorte/v1.json", "title": "NumeroPorte v1", "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "aggregateId", "aggregateType", "sagaId", "traceId", "correlationId", "causationId", "payload"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"}, "eventType": {"const": "NumeroPorte"}, "eventVersion": {"const": 1}, "occurredAt": {"type": "string", "format": "date-time"},
+    "aggregateId": {"type": "string", "minLength": 1}, "aggregateType": {"const": "Portabilite"}, "sagaId": {"type": "string", "format": "uuid"}, "traceId": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "correlationId": {"type": "string", "minLength": 1}, "causationId": {"type": "string", "format": "uuid"},
+    "payload": {"type": "object", "required": ["idCommande", "idLigne", "portId", "msisdn", "portedAt", "previousOperator"], "properties": {
+      "idCommande": {"type": "string", "minLength": 1}, "idLigne": {"type": "string", "minLength": 1}, "portId": {"type": "string", "minLength": 1}, "msisdn": {"type": "string", "minLength": 1}, "portedAt": {"type": "string", "format": "date-time"}, "previousOperator": {"type": "string", "minLength": 1}
+    }, "additionalProperties": true}
+  }, "additionalProperties": false
+}

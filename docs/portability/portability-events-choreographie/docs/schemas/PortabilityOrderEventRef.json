@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortabilityOrderEventRef.json",
+  "title": "PortabilityOrderEventRef",
+  "description": "Snapshot d'un ordre de portabilité embarqué dans un événement TMF v4",
+  "type": "object",
+  "required": ["number"],
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "PortabilityOrderRef"
+    },
+    "@referredType": {
+      "type": "string",
+      "const": "PortabilityOrder"
+    },
+    "id": {
+      "type": "string",
+      "description": "Identifiant de l'ordre (présent après création Hub)",
+      "examples": ["PORT-20260721-ABC123"]
+    },
+    "href": {
+      "type": "string",
+      "format": "uri"
+    },
+    "number": {
+      "type": "string",
+      "description": "Numéro téléphonique à porter"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "requested",
+        "pending_out_validation",
+        "approved",
+        "rejected",
+        "port_completed",
+        "cancelled"
+      ]
+    },
+    "recipientOperator": {
+      "type": "string",
+      "description": "BSS receveur (BSS1)"
+    },
+    "currentOperator": {
+      "type": "string",
+      "description": "BSS donneur (BSS2)"
+    },
+    "requestedPortDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "confirmedPortDate": {
+      "type": "string",
+      "format": "date"
+    },
+    "rejectionReason": {
+      "type": "string"
+    },
+    "customerName": {
+      "type": "string"
+    },
+    "accountId": {
+      "type": "string",
+      "description": "Compte receveur (BSS1) dans ce prototype"
+    }
+  }
+}

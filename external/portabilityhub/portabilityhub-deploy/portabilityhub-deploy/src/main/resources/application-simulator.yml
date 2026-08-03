@@ -1,0 +1,18 @@
+portabilityhubsync:
+  hub:
+    public-base-url: ${SIMULATOR_PUBLIC_BASE_URL:http://localhost:${server.port}}
+  simulator:
+    enabled: true
+    public-base-url: ${SIMULATOR_PUBLIC_BASE_URL:http://localhost:${server.port}}
+    use-bss-gateway: ${SIMULATOR_USE_BSS_GATEWAY:true}
+    bss1-gateway-public-url: ${BSS1_GATEWAY_PUBLIC_URL:http://localhost:8291}
+    bss2-gateway-public-url: ${BSS2_GATEWAY_PUBLIC_URL:http://localhost:8292}
+    bss1-gateway-internal-url: ${BSS1_GATEWAY_INTERNAL_URL:http://localhost:8291}
+    bss2-gateway-internal-url: ${BSS2_GATEWAY_INTERNAL_URL:http://localhost:8292}
+  webhook:
+    jwt:
+      enabled: ${WEBHOOK_JWT_ENABLED:false}
+
+logging:
+  level:
+    com.cantelcox.portabilityhubsync: INFO

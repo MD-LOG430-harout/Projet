@@ -10,9 +10,8 @@ for name in list(sys.modules):
     if name == "app" or name.startswith("app."):
         del sys.modules[name]
 
-from app.adapters.outbound.hlr import free5gc_hlr_adapter
-from app.adapters.outbound.hlr.free5gc_hlr_adapter import Free5gcHlrAdapter
-from app.domain.model.line import Line
+from app.adapters.outbound.hlr.free5gc_hlr_adapter import Free5gcHlrAdapter  # noqa: E402
+from app.domain.model.line import Line  # noqa: E402
 
 
 class Response:
@@ -39,85 +38,66 @@ def line():
     )
 
 
-def adapter():
-    return Free5gcHlrAdapter("http://free5gc", "admin", "free5gc", "20893")
+def adapter(session=None):
+    return Free5gcHlrAdapter(
+        "http://free5gc", "admin", "free5gc", "20893",
+        "key", "opc", "sequence", session=session,
+    )
 
 
-def test_complete_subscriber_lookup_does_not_write(monkeypatch):
+def test_complete_subscriber_lookup_does_not_write():
     calls = []
 
-    def post(url, **kwargs):
-        calls.append(("POST", url, kwargs))
-        return Response(200, {"token": "jwt"})
-
-    def get(url, **kwargs):
-        calls.append(("GET", url, kwargs))
-        return Response(
-            200,
-            {
+    class Session:
+        def request(self, method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            if url.endswith("/api/login"):
+                return Response(200, {"token": "jwt"})
+            return Response(200, {
+                "ueId": "imsi-208930000000001",
                 "AuthenticationSubscription": {
                     "authenticationMethod": "5G_AKA",
                     "permanentKey": {"permanentKeyValue": "key"},
+                    "opc": {"opcValue": "opc"},
                 },
                 "AccessAndMobilitySubscriptionData": {"gpsis": ["msisdn-14385551234"]},
-            },
-        )
+            })
 
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "post", post)
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "get", get)
-
-    assert adapter().provision(line()) is True
+    assert adapter(Session()).provision(line(), trace_id="1" * 32)["created"] is False
     assert [call[0] for call in calls] == ["POST", "GET"]
 
 
-def test_empty_subscriber_shell_is_updated_with_full_profile(monkeypatch):
+def test_conflicting_subscriber_fails_without_put():
     calls = []
 
-    def post(url, **kwargs):
-        calls.append(("POST", url, kwargs))
-        return Response(200, {"token": "jwt"})
-
-    def get(url, **kwargs):
-        calls.append(("GET", url, kwargs))
-        return Response(
-            200,
-            {
+    class Session:
+        def request(self, method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            if url.endswith("/api/login"):
+                return Response(200, {"token": "jwt"})
+            return Response(200, {
                 "ueId": "imsi-208930000000001",
                 "AuthenticationSubscription": {"authenticationMethod": "", "permanentKey": None},
                 "AccessAndMobilitySubscriptionData": {},
-            },
-        )
+            })
 
-    def put(url, **kwargs):
-        calls.append(("PUT", url, kwargs))
-        return Response(200)
-
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "post", post)
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "get", get)
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "put", put)
-
-    assert adapter().provision(line()) is True
-
-    methods = [call[0] for call in calls]
-    assert methods == ["POST", "GET", "PUT"]
-    payload = calls[-1][2]["json"]
-    assert payload["ueId"] == "imsi-208930000000001"
-    assert payload["AccessAndMobilitySubscriptionData"]["gpsis"] == ["msisdn-14385551234"]
+    import pytest
+    with pytest.raises(RuntimeError, match="conflicts"):
+        adapter(Session()).provision(line(), trace_id="1" * 32)
+    assert [call[0] for call in calls] == ["POST", "GET"]
 
 
-def test_missing_subscriber_is_created(monkeypatch):
+def test_missing_subscriber_is_created():
     calls = []
 
-    def post(url, **kwargs):
-        calls.append(("POST", url, kwargs))
-        return Response(200, {"token": "jwt"} if url.endswith("/api/login") else {})
+    class Session:
+        def request(self, method, url, **kwargs):
+            calls.append((method, url, kwargs))
+            if url.endswith("/api/login"):
+                return Response(200, {"token": "jwt"})
+            if method == "GET":
+                return Response(404)
+            return Response(201)
 
-    def get(url, **kwargs):
-        calls.append(("GET", url, kwargs))
-        return Response(404)
-
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "post", post)
-    monkeypatch.setattr(free5gc_hlr_adapter.requests, "get", get)
-
-    assert adapter().provision(line()) is True
+    assert adapter(Session()).provision(line(), trace_id="1" * 32)["created"] is True
     assert [call[0] for call in calls] == ["POST", "GET", "POST"]

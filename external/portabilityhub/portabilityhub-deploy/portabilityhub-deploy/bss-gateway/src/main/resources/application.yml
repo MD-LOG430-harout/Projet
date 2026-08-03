@@ -1,0 +1,31 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: portabilityhub-bss-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: portability-webhook
+          uri: ${bssgateway.backend-host:http://localhost:8082}
+          predicates:
+            - Path=/webhooks/portability
+            - Method=POST
+          filters:
+            - RewritePath=/webhooks/portability, ${bssgateway.backend-path:/simulator/api/webhooks/bss1}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+bssgateway:
+  backend-host: ${BSS_GATEWAY_BACKEND_HOST:http://localhost:8082}
+  backend-path: ${BSS_GATEWAY_BACKEND_PATH:/simulator/api/webhooks/bss1}
+  operator: ${BSS_GATEWAY_OPERATOR:BSS1}
+  jwt:
+    hub-public-key-location: ${BSS_GATEWAY_HUB_JWT_PUBLIC_KEY:classpath:jwt/hub-webhook-public.pem}
+    expected-issuer: ${BSS_GATEWAY_HUB_JWT_ISSUER:PortabilityHub}
+    expected-audience: ${BSS_GATEWAY_HUB_JWT_AUDIENCE:portability-webhook}

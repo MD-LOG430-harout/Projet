@@ -2,6 +2,7 @@ from flask import Blueprint, current_app, g, jsonify, request
 
 from app.application.commands.activate_line import ActivateLine
 from app.application.queries.get_line import GetLine, GetLineByMsisdn
+from app.application.handlers.portability_webhook_handler import InvalidWebhook, UnknownHubOrder
 
 
 bp = Blueprint("lignes_services", __name__)
@@ -50,3 +51,14 @@ def get_line_by_msisdn(msisdn):
 @bp.get("/health")
 def health():
     return jsonify({"status": "UP", "service": "svc-lignes-services"})
+
+
+@bp.post("/v1/webhooks/portability")
+def portability_webhook():
+    try:
+        result = current_app.config["portability_webhook_handler"].handle(request.get_json(silent=True) or {})
+    except InvalidWebhook as exc:
+        return jsonify({"code": "invalid_portability_webhook", "message": str(exc)}), 400
+    except UnknownHubOrder:
+        return jsonify({"code": "unknown_hub_order", "message": "Unknown PortabilityHub order"}), 404
+    return jsonify({"status": "ACCEPTED", "result": result}), 200

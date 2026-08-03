@@ -1,0 +1,56 @@
+asyncapi: 3.0.0
+info:
+  title: CanTelcoX internal Phase 2 events
+  version: 1.0.0
+  description: Eleven internal at-least-once Kafka event types. Message key is aggregateId.
+servers:
+  localKafka:
+    host: kafka:9092
+    protocol: kafka
+channels:
+  commandePassee:
+    address: commande-passee.v1
+    messages: {event: {$ref: '#/components/messages/CommandePassee'}}
+  paiementAutorise:
+    address: paiement-autorise.v1
+    messages: {event: {$ref: '#/components/messages/PaiementAutorise'}}
+  paiementRefuse:
+    address: paiement-refuse.v1
+    messages: {event: {$ref: '#/components/messages/PaiementRefuse'}}
+  paiementRembourse:
+    address: paiement-rembourse.v1
+    messages: {event: {$ref: '#/components/messages/PaiementRembourse'}}
+  ligneActivee:
+    address: ligne-activee.v1
+    messages: {event: {$ref: '#/components/messages/LigneActivee'}}
+  activationEchouee:
+    address: activation-echouee.v1
+    messages: {event: {$ref: '#/components/messages/ActivationEchouee'}}
+  commandeConfirmee:
+    address: commande-confirmee.v1
+    messages: {event: {$ref: '#/components/messages/CommandeConfirmee'}}
+  commandeAnnulee:
+    address: commande-annulee.v1
+    messages: {event: {$ref: '#/components/messages/CommandeAnnulee'}}
+  portabiliteDemandee:
+    address: portabilite-demandee.v1
+    messages: {event: {$ref: '#/components/messages/PortabiliteDemandee'}}
+  numeroPorte:
+    address: numero-porte.v1
+    messages: {event: {$ref: '#/components/messages/NumeroPorte'}}
+  portabiliteEchouee:
+    address: portabilite-echouee.v1
+    messages: {event: {$ref: '#/components/messages/PortabiliteEchouee'}}
+components:
+  messages:
+    CommandePassee: {name: CommandePassee, payload: {$ref: './CommandePassee/v1.json'}}
+    PaiementAutorise: {name: PaiementAutorise, payload: {$ref: './PaiementAutorise/v1.json'}}
+    PaiementRefuse: {name: PaiementRefuse, payload: {$ref: './PaiementRefuse/v1.json'}}
+    PaiementRembourse: {name: PaiementRembourse, payload: {$ref: './PaiementRembourse/v1.json'}}
+    LigneActivee: {name: LigneActivee, payload: {$ref: './LigneActivee/v1.json'}}
+    ActivationEchouee: {name: ActivationEchouee, payload: {$ref: './ActivationEchouee/v1.json'}}
+    CommandeConfirmee: {name: CommandeConfirmee, payload: {$ref: './CommandeConfirmee/v1.json'}}
+    CommandeAnnulee: {name: CommandeAnnulee, payload: {$ref: './CommandeAnnulee/v1.json'}}
+    PortabiliteDemandee: {name: PortabiliteDemandee, payload: {$ref: './PortabiliteDemandee/v1.json'}}
+    NumeroPorte: {name: NumeroPorte, payload: {$ref: './NumeroPorte/v1.json'}}
+    PortabiliteEchouee: {name: PortabiliteEchouee, payload: {$ref: './PortabiliteEchouee/v1.json'}}

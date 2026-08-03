@@ -1,0 +1,63 @@
+@startuml
+title Composants événementiels de svc-lignes-services
+top to bottom direction
+skinparam shadowing false
+skinparam linetype polyline
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 35
+skinparam ranksep 45
+
+queue "Kafka entrant\nPaiementAutorise\nCommandeAnnulee" as KafkaIn #F3E8FF
+queue "Kafka sortant\nLigneActivee / ActivationEchouee\nPortabiliteDemandee / NumeroPorte / PortabiliteEchouee" as KafkaOut #F3E8FF
+
+rectangle "svc-lignes-services" as Service #EFF6FF {
+  rectangle "Listener Kafka\nDésérialisation\nValidation JSON Schema\nExtraction traceparent" as Listener #DBEAFE
+  rectangle "Handler idempotent\nprocessed_events + garde d'état" as Handler #DBEAFE
+  rectangle "Service applicatif\nRègles Ligne / Portabilité" as App #DBEAFE
+  rectangle "Persistance atomique\nAgrégat + Outbox" as Persistence #DBEAFE
+  database "MySQL\nDB Lignes\nprocessed_events\noutbox_events" as DB
+  rectangle "Outbox Relay\nLease PUBLISHING\nPublication hors transaction SQL" as Relay #DBEAFE
+  rectangle "Adapter HLR/HSS + ACL" as HLRAdapter #DCFCE7
+  rectangle "Adapter PortabilityHub + ACL" as HubAdapter #DCFCE7
+  rectangle "Webhook PortabilityHub\nIdempotent" as Webhook #DCFCE7
+}
+
+rectangle "HLR / HSS fourni" as HLR #DCFCE7
+rectangle "PortabilityHub fourni" as Hub #DCFCE7
+
+KafkaIn --> Listener : at-least-once
+Listener --> Handler
+Handler --> App : nouvel eventId
+Handler --> DB : réserve eventId
+App --> Persistence
+Persistence --> DB : même transaction MySQL
+DB --> Relay : lease PENDING / expiré
+Relay --> KafkaOut : key = aggregateId\nattendre ACK
+Relay --> DB : PUBLISHED après ACK
+
+App --> HLRAdapter
+HLRAdapter --> HLR : REST + traceparent\ntimeout + retry
+HLR --> HLRAdapter : résultat
+
+App --> HubAdapter
+HubAdapter --> Hub : initiation REST
+Hub --> Webhook : notifications HTTP
+Webhook --> App : statut traduit par ACL
+
+note bottom of DB
+event_id UNIQUE neutralise les relivraisons.
+PENDING / PUBLISHING / PUBLISHED.
+end note
+
+note bottom of Relay
+Une republication conserve le même eventId.
+Deux relais ne partagent pas le même lease.
+end note
+
+note bottom of Webhook
+pending_out_validation / approved / rejected /
+port_completed / cancelled
+end note
+@enduml

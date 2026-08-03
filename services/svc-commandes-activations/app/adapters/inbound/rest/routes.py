@@ -4,6 +4,7 @@ from services.shared.errors import ApiError
 
 from app.application.commands.create_activation import CreateActivation
 from app.application.commands.create_order import CreateOrder
+from app.application.queries.get_order_status import GetOrderStatus
 
 
 bp = Blueprint("commandes_activations", __name__)
@@ -30,6 +31,11 @@ def create_activation():
     return response
 
 
+@bp.get("/v1/orders/<order_id>/status")
+def get_order_status(order_id):
+    return jsonify(GetOrderStatus(current_app.config["order_repository"]).execute(order_id))
+
+
 @bp.post("/v1/orders")
 def create_order():
     idempotency_key = request.headers.get("Idempotency-Key")
@@ -47,6 +53,7 @@ def create_order():
     response = jsonify(body)
     response.status_code = status_code
     response.headers["Idempotency-Replayed"] = "true" if replayed else "false"
+    response.headers["Location"] = f"/v1/orders/{body['orderId']}/status"
     return response
 
 

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/EventSourceRef.json",
+  "title": "EventSourceRef",
+  "description": "Référence à la source d'un événement TMF Event Management v4",
+  "type": "object",
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "EntityRef"
+    },
+    "id": {
+      "type": "string",
+      "examples": ["PortabilityHub", "BSS1", "BSS2"]
+    },
+    "href": {
+      "type": "string",
+      "format": "uri"
+    },
+    "@referredType": {
+      "type": "string",
+      "const": "Application"
+    }
+  },
+  "required": ["id"]
+}

@@ -13,6 +13,7 @@ ENV PYTHONPATH=/app \
 
 COPY --from=builder /install /usr/local
 COPY services/shared /app/services/shared
+COPY contracts/events /app/contracts/events
 COPY services/svc-usage-facturation/app /app/app
 
 EXPOSE 5000

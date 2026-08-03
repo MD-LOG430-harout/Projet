@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema", "$id": "https://cantelcox.local/contracts/events/LigneActivee/v1.json", "title": "LigneActivee v1", "type": "object",
+  "required": ["eventId", "eventType", "eventVersion", "occurredAt", "aggregateId", "aggregateType", "sagaId", "traceId", "correlationId", "causationId", "payload"],
+  "properties": {
+    "eventId": {"type": "string", "format": "uuid"}, "eventType": {"const": "LigneActivee"}, "eventVersion": {"const": 1}, "occurredAt": {"type": "string", "format": "date-time"},
+    "aggregateId": {"type": "string", "minLength": 1}, "aggregateType": {"const": "Ligne"}, "sagaId": {"type": "string", "format": "uuid"}, "traceId": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+    "correlationId": {"type": "string", "minLength": 1}, "causationId": {"type": "string", "format": "uuid"},
+    "payload": {"type": "object", "required": ["idLigne", "idCommande", "msisdn", "activationMode", "hlrReference", "activatedAt"], "properties": {
+      "idLigne": {"type": "string", "minLength": 1}, "idCommande": {"type": "string", "minLength": 1}, "msisdn": {"type": "string", "minLength": 1}, "activationMode": {"enum": ["NEW", "PORT_IN"]}, "hlrReference": {"type": "string", "minLength": 1}, "activatedAt": {"type": "string", "format": "date-time"}
+    }, "additionalProperties": true}
+  }, "additionalProperties": false
+}

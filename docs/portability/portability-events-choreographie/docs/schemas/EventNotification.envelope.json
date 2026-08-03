@@ -1,0 +1,78 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/EventNotification.envelope.json",
+  "title": "EventNotification",
+  "description": "Enveloppe TMF Event Management v4 (Event API) — champs communs à tous les événements portabilité",
+  "type": "object",
+  "required": [
+    "@type",
+    "id",
+    "href",
+    "eventId",
+    "eventTime",
+    "eventType",
+    "correlationId",
+    "domain",
+    "event"
+  ],
+  "properties": {
+    "@type": {
+      "type": "string",
+      "description": "Discriminant TMF — identique à eventType"
+    },
+    "@baseType": {
+      "type": "string",
+      "const": "Event"
+    },
+    "id": {
+      "type": "string",
+      "description": "Identifiant technique de la ressource Event",
+      "examples": ["evt-hub-987654"]
+    },
+    "href": {
+      "type": "string",
+      "format": "uri",
+      "examples": ["https://hub.example.com/tmf-api/eventManagement/v4/event/evt-hub-987654"]
+    },
+    "eventId": {
+      "type": "string",
+      "description": "Identifiant métier unique de cette occurrence d'événement",
+      "examples": ["PORT-EVT-20260721-001"]
+    },
+    "eventTime": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "eventType": {
+      "type": "string"
+    },
+    "correlationId": {
+      "type": "string",
+      "description": "Fil de corrélation du parcours de portabilité (orderId après création Hub)"
+    },
+    "domain": {
+      "type": "string",
+      "const": "portability"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "examples": ["2", "3"]
+    },
+    "timeOccurred": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source": {
+      "$ref": "EventSourceRef.json"
+    },
+    "event": {
+      "type": "object"
+    }
+  }
+}

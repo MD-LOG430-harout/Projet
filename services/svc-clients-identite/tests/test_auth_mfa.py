@@ -11,8 +11,8 @@ for name in list(sys.modules):
     if name == "app" or name.startswith("app."):
         del sys.modules[name]
 
-from app.main import create_app
-from services.shared.security import hash_secret
+from app.main import create_app  # noqa: E402
+from services.shared.security import hash_secret  # noqa: E402
 
 
 class Customers:

@@ -156,8 +156,8 @@ class CanTelcoXPhase1User(HttpUser):
             name="UC-05 create order",
             catch_response=True,
         ) as response:
-            if response.status_code != 201:
-                response.failure(f"expected 201, got {response.status_code}")
+            if response.status_code != 202:
+                response.failure(f"expected 202, got {response.status_code}")
                 return
             order_id = _json(response).get("orderId")
             if not order_id:
@@ -171,8 +171,8 @@ class CanTelcoXPhase1User(HttpUser):
             name="UC-05 order replay",
             catch_response=True,
         ) as response:
-            if response.status_code not in (200, 201):
-                response.failure(f"expected 200/201, got {response.status_code}")
+            if response.status_code != 202:
+                response.failure(f"expected 202, got {response.status_code}")
                 return
             if _json(response).get("orderId") != order_id:
                 response.failure("idempotency replay returned a different orderId")

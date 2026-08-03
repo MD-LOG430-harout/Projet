@@ -45,6 +45,11 @@ jobs:
           python -m json.tool docs/api/postman/CanTelcoX-Phase1-Gateway.postman_collection.json > /dev/null
           docker compose config > artifacts/docker-compose.config.yml
 
+      - name: Validate Phase 2 event foundations
+        run: |
+          python -m pytest -p no:cacheprovider tests/contracts tests/unit \
+            --junitxml=artifacts/phase2-foundations-tests.xml
+
       - name: Run unit tests
         run: |
           python -m pytest -p no:cacheprovider \

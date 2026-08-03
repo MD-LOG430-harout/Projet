@@ -5,7 +5,6 @@ import uuid
 from services.shared.errors import ApiError
 
 from app.domain.model.payment import Payment
-from app.application.queries.get_invoices import _invoice_public
 
 
 class PayInvoice:

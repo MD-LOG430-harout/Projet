@@ -1,10 +1,13 @@
 import hashlib
 import json
 import uuid
+from datetime import datetime, timedelta, timezone
 
 from services.shared.errors import ApiError
+from services.shared.events import EventEnvelope
 
 from app.domain.model.order import Order
+from app.domain.model.saga_state import SagaState
 
 
 SUPPORTED_ORDER_TYPES = {"NEW_PLAN", "CHANGE_PLAN", "ADD_OPTION"}
@@ -37,6 +40,7 @@ class CreateOrder:
             return self._response_from_existing(existing), int(existing["http_status"]), True
 
         order_id = str(uuid.uuid4())
+        saga_id = str(uuid.uuid4())
         customer_id = payload["customerId"]
         offer_id = payload["offerId"]
         self._audit("ORDER_REQUESTED", order_id, customer_id, "PENDING", trace_id, {"offerId": offer_id})
@@ -91,31 +95,28 @@ class CreateOrder:
         quantity = int(payload["quantity"])
         monthly_price = float(offer.get("monthlyPrice") or 0)
         total_amount = round(monthly_price * quantity, 2)
+        current_operator = payload.get("currentOperator")
         response = {
             "orderId": order_id,
-            "customerId": customer_id,
-            "offerId": offer_id,
-            "orderType": payload["orderType"],
-            "status": "ACCEPTED",
-            "orchestrationStatus": "READY_FOR_ACTIVATION",
-            "confirmationStatus": "SIMULATED_SENT",
-            "totalAmount": total_amount,
-            "currency": "CAD",
+            "status": "EN_COURS",
+            "sagaId": saga_id,
         }
         order = Order(
             order_id=order_id,
             customer_id=customer_id,
             offer_id=offer_id,
             order_type=payload["orderType"],
-            status="ACCEPTED",
-            orchestration_status="READY_FOR_ACTIVATION",
-            confirmation_status="SIMULATED_SENT",
+            status="EN_COURS",
+            orchestration_status="EN_COURS",
+            confirmation_status="PENDING",
             total_amount=total_amount,
             currency="CAD",
             idempotency_key=idempotency_key,
             request_hash=request_hash,
             response_body=response,
-            http_status=201,
+            saga_id=saga_id,
+            current_operator=current_operator,
+            http_status=202,
         )
         response["createdAt"] = order.created_at.isoformat()
         order = Order(
@@ -132,12 +133,44 @@ class CreateOrder:
             request_hash=order.request_hash,
             response_body=response,
             http_status=order.http_status,
+            saga_id=order.saga_id,
+            current_operator=order.current_operator,
             created_at=order.created_at,
         )
-        self.order_repository.create_order(order)
+        event_trace_id = self._event_trace_id(trace_id)
+        number_mode = payload.get("numberMode", "NEW")
+        event_payload = {
+            "idCommande": order_id,
+            "idClient": customer_id,
+            "idOffre": offer_id,
+            "montant": total_amount,
+            "devise": "CAD",
+            "numberMode": number_mode,
+        }
+        if payload.get("msisdnDemande"):
+            event_payload["msisdnDemande"] = payload["msisdnDemande"]
+        if current_operator:
+            event_payload["currentOperator"] = current_operator
+        event = EventEnvelope.create(
+            event_type="CommandePassee",
+            aggregate_id=order_id,
+            aggregate_type="Commande",
+            payload=event_payload,
+            trace_id=event_trace_id,
+            correlation_id=order_id,
+            saga_id=saga_id,
+        )
+        saga = SagaState(
+            saga_id=saga_id,
+            order_id=order_id,
+            status="EN_COURS",
+            deadline_at=datetime.now(timezone.utc) + timedelta(seconds=60),
+            portability_status="PENDING" if number_mode == "PORT_IN" else "NOT_REQUIRED",
+            last_event_id=event.eventId,
+        )
+        self.order_repository.create_order_with_saga(order, saga, event)
         self._audit("ORDER_ACCEPTED", order_id, customer_id, "SUCCESS", trace_id, {"totalAmount": total_amount, "currency": "CAD"})
-        self._audit("ORDER_CONFIRMATION_SIMULATED", order_id, customer_id, "SUCCESS", trace_id, {"confirmationStatus": "SIMULATED_SENT"})
-        return response, 201, False
+        return response, 202, False
 
     def _validate_payload(self, payload):
         if not payload.get("customerId"):
@@ -153,6 +186,15 @@ class CreateOrder:
         if quantity < 1:
             raise ApiError(400, "validation_error", "quantity must be a positive integer", {"field": "quantity"})
         payload["quantity"] = quantity
+        number_mode = (payload.get("numberMode") or "NEW").upper()
+        if number_mode not in {"NEW", "PORT_IN"}:
+            raise ApiError(400, "validation_error", "numberMode must be NEW or PORT_IN", {"field": "numberMode"})
+        if number_mode == "PORT_IN":
+            if not payload.get("msisdnDemande"):
+                raise ApiError(400, "validation_error", "msisdnDemande is required for PORT_IN", {"field": "msisdnDemande"})
+            if not payload.get("currentOperator"):
+                raise ApiError(400, "validation_error", "currentOperator is required for PORT_IN", {"field": "currentOperator"})
+        payload["numberMode"] = number_mode
 
     def _hash_payload(self, payload):
         canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"))
@@ -161,6 +203,12 @@ class CreateOrder:
     def _response_from_existing(self, existing):
         body = existing["response_body"]
         return json.loads(body) if isinstance(body, str) else body
+
+    def _event_trace_id(self, trace_id):
+        candidate = (trace_id or "").replace("-", "").lower()
+        if len(candidate) == 32 and all(char in "0123456789abcdef" for char in candidate):
+            return candidate
+        return hashlib.sha256((trace_id or str(uuid.uuid4())).encode("utf-8")).hexdigest()[:32]
 
     def _audit(self, event_type, order_id, customer_id, result, trace_id, metadata=None):
         if not self.audit_client:

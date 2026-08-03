@@ -122,3 +122,10 @@ Preferred Phase 1 path:
    - `FREE5GC_UDM_URL=http://host.docker.internal:8000`
 
 If both stacks are merged into one Compose project, services can use Docker service names instead of `host.docker.internal`.
+# Phase 2 profile note
+
+The supplied free5GC bundle remains an external integration profile because its
+own MongoDB/network-function topology is maintained by the course artifact.
+Start it with its supplied `docker-compose.udm-min.yaml`, then configure
+`FREE5GC_WEBUI_URL`, credentials, PLMN, and subscriber secrets in the root
+environment. CanTelcoX never embeds or reimplements the subscriber API.

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/PortabilityOrderStateChangeEvent.order-cancelled.json",
+  "title": "PortabilityOrderStateChangeEvent (order-cancelled)",
+  "description": "Annulation — topic portability.order-cancelled — producteur Hub ou BSS1",
+  "allOf": [
+    { "$ref": "EventNotification.envelope.json" },
+    {
+      "type": "object",
+      "properties": {
+        "@type": { "const": "PortabilityOrderStateChangeEvent" },
+        "eventType": { "const": "PortabilityOrderStateChangeEvent" },
+        "event": {
+          "type": "object",
+          "required": ["portabilityOrder"],
+          "properties": {
+            "portabilityOrder": {
+              "allOf": [
+                { "$ref": "PortabilityOrderEventRef.json" },
+                {
+                  "required": ["id", "href", "status"],
+                  "properties": {
+                    "status": { "const": "cancelled" }
+                  }
+                }
+              ]
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "@type": "PortabilityOrderStateChangeEvent",
+      "@baseType": "Event",
+      "id": "evt-bss1-g7h8i9",
+      "href": "https://hub.example.com/tmf-api/eventManagement/v4/event/evt-bss1-g7h8i9",
+      "eventId": "PORT-EVT-20260721-006",
+      "eventTime": "2026-07-21T15:00:00.000Z",
+      "eventType": "PortabilityOrderStateChangeEvent",
+      "correlationId": "PORT-20260721-ABC123",
+      "domain": "portability",
+      "title": "Portabilité annulée",
+      "description": "L'ordre de portabilité a été annulé",
+      "priority": "2",
+      "timeOccurred": "2026-07-21T15:00:00.000Z",
+      "source": {
+        "@type": "EntityRef",
+        "id": "BSS1",
+        "href": "https://hub.example.com/bss1",
+        "@referredType": "Application"
+      },
+      "event": {
+        "portabilityOrder": {
+          "@type": "PortabilityOrderRef",
+          "@referredType": "PortabilityOrder",
+          "id": "PORT-20260721-ABC123",
+          "href": "https://hub.example.com/portability/order/PORT-20260721-ABC123",
+          "number": "5145551234",
+          "status": "cancelled",
+          "recipientOperator": "BSS1",
+          "currentOperator": "BSS2",
+          "rejectionReason": "Client a retiré sa demande",
+          "customerName": "Pierre Gauthier",
+          "accountId": "CUST-98765"
+        }
+      }
+    }
+  ]
+}

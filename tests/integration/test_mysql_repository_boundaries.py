@@ -266,6 +266,7 @@ def test_commandes_activations_mysql_repository_enforces_idempotency_boundary():
                 idempotency_key=order_key,
                 request_hash="b" * 64,
                 response_body={"orderId": order_id, "status": "ACCEPTED"},
+                saga_id=str(uuid.uuid4()),
             )
             repo.create_order(order)
             stored_order = repo.find_order_by_idempotency_key(order_key)

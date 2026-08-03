@@ -1,0 +1,58 @@
+@startuml
+title Transactional Outbox - écriture atomique et publication fiable
+
+actor Client
+participant "API / Service applicatif" as Service
+database "MySQL" as DB
+participant "Outbox Poller" as Poller
+participant "Apache Kafka" as Kafka
+participant "Consommateur idempotent" as Consumer
+database "processed_events" as Processed
+
+Client -> Service : POST /v1/orders
+activate Service
+
+Service -> DB : BEGIN
+Service -> DB : INSERT / UPDATE donnée métier
+Service -> DB : INSERT outbox_events\nstatus = PENDING
+Service -> DB : COMMIT
+DB --> Service : transaction validée
+Service --> Client : 202 Accepted
+deactivate Service
+
+loop Toutes les 500 ms
+    Poller -> DB : BEGIN + SELECT PENDING/lease expiré\nFOR UPDATE SKIP LOCKED
+    DB --> Poller : lot d'événements
+    Poller -> DB : UPDATE status=PUBLISHING\nlock_token + locked_until\nCOMMIT
+
+    Poller -> Kafka : publier(eventId, payload)
+    Kafka --> Poller : ACK
+
+    Poller -> DB : UPDATE outbox_events\nstatus = PUBLISHED\npublished_at = now()
+end
+
+Kafka -> Consumer : livraison at-least-once
+Consumer -> Processed : vérifier eventId
+
+alt eventId déjà traité
+    Processed --> Consumer : doublon détecté
+    Consumer --> Kafka : validation de l'offset\nsans nouvel effet
+else nouvel événement
+    Processed --> Consumer : eventId absent
+    Consumer -> Processed : BEGIN
+    Consumer -> Processed : appliquer l'effet métier
+    Consumer -> Processed : INSERT processed_events(eventId)
+    Consumer -> Processed : COMMIT
+    Consumer --> Kafka : validation de l'offset
+end
+
+note over Poller, Consumer
+Une panne après l'ACK Kafka,
+mais avant la mise à jour de published_at,
+peut provoquer une republication.
+
+Le même eventId permet
+la déduplication côté consommateur.
+end note
+
+@enduml

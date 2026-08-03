@@ -7,6 +7,7 @@ from services.shared.http import register_request_hooks
 from services.shared.logging import configure_json_logging
 from services.shared.metrics import register_metrics
 from services.shared.mysql import connect_from_env
+from services.shared.tracing import initialize_tracing, OtelSettings
 
 from app.adapters.inbound.rest.routes import bp
 from app.adapters.outbound.cache.redis_offer_cache import RedisOfferCache
@@ -18,6 +19,7 @@ SERVICE_NAME = "svc-catalogue-offres"
 
 def create_app(offer_repository=None, offer_cache=None):
     app = Flask(__name__)
+    initialize_tracing(OtelSettings.from_env(SERVICE_NAME))
     configure_json_logging(app, SERVICE_NAME)
     register_request_hooks(app, SERVICE_NAME)
     register_metrics(app, SERVICE_NAME)
@@ -30,7 +32,8 @@ def create_app(offer_repository=None, offer_cache=None):
         "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "cantelcox_dev"),
         "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "catalogue_offres"),
     }
-    connection_factory = lambda: connect_from_env(db_config)
+    def connection_factory():
+        return connect_from_env(db_config)
     app.config["offer_repository"] = offer_repository or MysqlOfferRepository(connection_factory)
     app.config["offer_cache"] = offer_cache
     redis_url = os.getenv("REDIS_URL")

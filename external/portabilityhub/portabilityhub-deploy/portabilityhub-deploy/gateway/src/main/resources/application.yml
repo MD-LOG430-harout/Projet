@@ -1,0 +1,35 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: portabilityhub-gateway
+  cloud:
+    gateway:
+      routes:
+        - id: portability-hub-api
+          uri: ${portabilityhubgateway.hub-uri:http://localhost:8082}
+          predicates:
+            - Path=/portability/**
+        - id: portability-hub-simulator
+          uri: ${portabilityhubgateway.hub-uri:http://localhost:8082}
+          predicates:
+            - Path=/simulator/**
+        - id: portability-hub-openapi
+          uri: ${portabilityhubgateway.hub-uri:http://localhost:8082}
+          predicates:
+            - Path=/swagger-ui/**,/swagger-ui.html,/openapi/**,/v3/api-docs/**
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+portabilityhubgateway:
+  hub-uri: ${GATEWAY_HUB_URI:http://localhost:8082}
+  dev-token-enabled: ${GATEWAY_DEV_TOKEN_ENABLED:false}
+  dev-token-ttl-seconds: ${GATEWAY_DEV_TOKEN_TTL_SECONDS:3600}
+  jwt:
+    public-key-location: ${GATEWAY_JWT_PUBLIC_KEY:classpath:jwt/hub-gateway-public.pem}
+    private-key-location: ${GATEWAY_JWT_PRIVATE_KEY:classpath:jwt/hub-gateway-private.pem}

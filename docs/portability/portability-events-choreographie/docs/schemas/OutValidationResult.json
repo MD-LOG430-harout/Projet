@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hub.example.com/schemas/portability/OutValidationResult.json",
+  "title": "OutValidationResult",
+  "description": "Résultat de la validation OUT par BSS2",
+  "type": "object",
+  "required": ["decision"],
+  "properties": {
+    "@type": {
+      "type": "string",
+      "const": "OutValidationResult"
+    },
+    "decision": {
+      "type": "string",
+      "enum": ["approved", "rejected"]
+    },
+    "confirmedPortDate": {
+      "type": "string",
+      "format": "date",
+      "description": "Requis lorsque decision = approved"
+    },
+    "rejectionReason": {
+      "type": "string",
+      "description": "Requis lorsque decision = rejected"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "decision": { "const": "approved" } },
+        "required": ["decision"]
+      },
+      "then": { "required": ["confirmedPortDate"] }
+    },
+    {
+      "if": {
+        "properties": { "decision": { "const": "rejected" } },
+        "required": ["decision"]
+      },
+      "then": { "required": ["rejectionReason"] }
+    }
+  ]
+}

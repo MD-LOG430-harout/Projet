@@ -1,0 +1,62 @@
+@startuml
+title Vue des blocs de construction - Niveau 1\nCanTelcoX Phase 2 événementielle
+top to bottom direction
+skinparam shadowing false
+skinparam linetype polyline
+skinparam packageStyle rectangle
+skinparam defaultFontName Arial
+skinparam defaultFontSize 12
+skinparam nodesep 40
+skinparam ranksep 45
+
+actor "Abonné / PME" as Subscriber
+actor "Opérateur" as Operator
+
+rectangle "CanTelcoX - Plateforme BSS" as BSS #F8FAFC {
+  rectangle "API Gateway / NGINX\nHTTP(S) JSON - /v1" as Gateway #E0F2FE
+  together {
+    rectangle "svc-clients-identite\nREST - DB Clients" as Clients #DBEAFE
+    rectangle "svc-catalogue-offres\nREST - Redis - DB Catalogue" as Catalogue #DBEAFE
+  }
+  together {
+    rectangle "svc-commandes-activations\nSaga - DB + Outbox + processed_events" as Commandes #DBEAFE
+    rectangle "svc-usage-facturation\nAutorisation / remboursement\nUC-06 séparé - DB + Outbox + processed_events" as Facturation #DBEAFE
+    rectangle "svc-lignes-services\nActivation / portabilité\nDB + Outbox + processed_events" as Lignes #DBEAFE
+  }
+  queue "Apache Kafka - KRaft\n11 topics internes versionnés\nat-least-once - key = aggregateId" as Kafka #F3E8FF
+  rectangle "svc-conformite-audit\n11 événements - journal append-only\nDB Audit + processed_events" as Audit #FEF3C7
+}
+
+rectangle "Systèmes fournis / externes" as External #F0FDF4 {
+  together {
+    rectangle "KYC / MFA" as IdentityExt
+    rectangle "Passerelle de paiement" as Payment
+    rectangle "HLR / HSS / UDM\nREST synchrone" as HLR
+    rectangle "PortabilityHub\nREST + notifications HTTP" as Hub
+  }
+}
+
+Subscriber --> Gateway
+Operator --> Gateway
+Gateway --> Clients
+Gateway --> Catalogue
+Gateway --> Commandes
+Gateway --> Lignes
+Gateway --> Facturation
+Gateway --> Audit
+
+Commandes --> Kafka : publie 3 types
+Facturation --> Kafka : publie 3 types
+Lignes --> Kafka : publie 5 types
+Kafka --> Commandes : consomme
+Kafka --> Facturation : consomme
+Kafka --> Lignes : consomme
+Kafka --> Audit : consomme les 11 types
+
+Clients --> IdentityExt
+Facturation --> Payment
+Lignes --> HLR : adapter + ACL
+Lignes --> Hub : initiation REST
+Hub --> Lignes : notifications HTTP
+
+@enduml

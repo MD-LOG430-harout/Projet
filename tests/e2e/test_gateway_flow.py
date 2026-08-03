@@ -1,10 +1,11 @@
 import uuid
+import os
 
 import pytest
 import requests
 
 
-BASE_URL = "http://localhost:8080"
+BASE_URL = os.getenv("E2E_BASE_URL", "http://localhost:8080")
 
 
 def _gateway_available():
@@ -83,12 +84,25 @@ def test_official_phase1_gateway_flow():
     }
     order_headers = {**auth_headers, "Idempotency-Key": order_key}
     order = requests.post(f"{BASE_URL}/v1/orders", json=order_payload, headers=order_headers, timeout=10)
-    assert order.status_code == 201
+    assert order.status_code == 202
     order_id = order.json()["orderId"]
+    assert order.headers["Location"] == f"/v1/orders/{order_id}/status"
 
     order_replay = requests.post(f"{BASE_URL}/v1/orders", json=order_payload, headers=order_headers, timeout=10)
-    assert order_replay.status_code in (200, 201)
+    assert order_replay.status_code == 202
     assert order_replay.json()["orderId"] == order_id
+
+    import time
+    deadline = time.monotonic() + 15
+    status = None
+    while time.monotonic() < deadline:
+        status_response = requests.get(f"{BASE_URL}/v1/orders/{order_id}/status", headers=auth_headers, timeout=10)
+        assert status_response.status_code == 200
+        status = status_response.json()["status"]
+        if status in {"CONFIRMEE", "ANNULEE"}:
+            break
+        time.sleep(0.25)
+    assert status == "CONFIRMEE"
 
     activation_key = f"e2e-activation-{uuid.uuid4()}"
     activation_payload = {

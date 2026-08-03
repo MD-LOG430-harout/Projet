@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Portability Hub — Simulateur BSS1 / BSS2</title>
+  <link rel="stylesheet" href="styles.css?v=16">
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Simulateur Portability Hub</h1>
+      <p class="subtitle">BSS1 · Hub Gateway · BSS2 — REST via Hub GW, webhooks via BSS GW</p>
+    </div>
+    <div id="statusBanner" class="status-banner hidden"></div>
+    <div class="header-actions">
+      <label class="inline-field">
+        <span>Hub Gateway</span>
+        <input id="hubGatewayBase" type="url" placeholder="http://localhost:8282" data-auto="true">
+      </label>
+      <button id="btnReset" class="btn ghost" type="button">Reset</button>
+    </div>
+  </header>
+
+  <section class="flow-bar panel">
+    <h2 class="flow-title">Flux de portabilité</h2>
+    <ol id="flowSteps" class="flow-steps">
+      <li data-step="hub" class="flow-step">Abonnements Hub</li>
+      <li data-step="create" class="flow-step">Port-in BSS1 → Hub GW</li>
+      <li data-step="out-needed" class="flow-step">Webhook → BSS2 GW</li>
+      <li data-step="validate" class="flow-step">Validate-out BSS2 → Hub GW</li>
+      <li data-step="approved" class="flow-step">StateChange → BSS GW</li>
+      <li data-step="completed" class="flow-step">port_completed</li>
+    </ol>
+  </section>
+
+  <main class="sim-grid">
+    <section class="panel bss-a">
+      <div class="panel-header">
+        <h2>BSS1</h2>
+        <span class="badge">Nouvel opérateur · Port-in</span>
+      </div>
+
+      <div class="gateway-strip">
+        <span class="gw-label">REST →</span>
+        <code id="hubGatewayDisplay" class="gw-url">—</code>
+        <span class="gw-label">Webhooks ←</span>
+        <code id="bss1GatewayDisplay" class="gw-url">—</code>
+      </div>
+
+      <div class="actor-status" id="bss1HubStatus">
+        <span class="status-dot pending"></span>
+        <span>Abonnement Hub : non enregistré</span>
+      </div>
+
+      <div class="endpoint-box">
+        <div class="endpoint-row">
+          <span class="endpoint-label">Callback (BSS GW)</span>
+          <code id="bss1WebhookUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">Listener interne</span>
+          <code id="bss1ListenerUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">Query Hub</span>
+          <code class="endpoint-url">PortabilityOrderStateChangeEvent</code>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btnRegisterBss1" class="btn secondary" type="button">POST /portability/hub (BSS1)</button>
+        <button id="btnSimulateBss1Webhook" class="btn ghost" type="button">Simuler webhook StateChange</button>
+      </div>
+
+      <form id="bssAForm" class="form-grid">
+        <label>
+          Numéro <span class="req">*</span>
+          <input id="phone" required type="tel" value="5145551234">
+        </label>
+        <label>
+          Opérateur actuel (BSS2)
+          <input id="currentOperator" required value="BSS2">
+        </label>
+        <label>
+          Nom client
+          <input id="customerName" required value="Pierre Gauthier">
+        </label>
+        <label>
+          Account ID
+          <input id="accountId" required value="CUST-98765">
+        </label>
+        <label class="span-2">
+          Date de portage souhaitée
+          <input id="requestedPortDate" type="datetime-local">
+        </label>
+      </form>
+
+      <div class="actions">
+        <button id="btnSubmitOrder" class="btn primary" type="button">POST /portability/order (BSS1)</button>
+        <button id="btnRefreshOrder" class="btn ghost" type="button">GET ordre (BSS1)</button>
+      </div>
+
+      <div class="status-box">
+        <h3>Ordre en cours</h3>
+        <dl class="status-dl">
+          <dt>Order ID</dt><dd id="hubOrderId">—</dd>
+          <dt>Statut</dt><dd id="hubOrderState" class="state">—</dd>
+          <dt>Numéro</dt><dd id="hubOrderPhone">—</dd>
+          <dt>Date confirmée</dt><dd id="hubConfirmedDate">—</dd>
+        </dl>
+      </div>
+
+      <div class="events-column compact">
+        <h3>Webhooks reçus (via BSS1 Gateway)</h3>
+        <div id="bssAEventsReceived" class="event-log empty">Aucun événement.</div>
+      </div>
+    </section>
+
+    <section class="panel hub-panel">
+      <div class="panel-header">
+        <h2>Hub</h2>
+        <span class="badge hub">Coordination + outbox</span>
+      </div>
+
+      <div class="hub-visual gateway-visual">
+        <div class="gw-node bss">BSS1</div>
+        <div class="gw-arrow">REST →</div>
+        <div class="gw-node hub-gw">Hub GW</div>
+        <div class="gw-arrow">→ Hub</div>
+        <div class="hub-node">HUB</div>
+        <div class="gw-arrow">webhook →</div>
+        <div class="gw-node bss-gw">BSS GW</div>
+        <div class="gw-arrow">→ BSS</div>
+      </div>
+
+      <div class="endpoint-box hub-box">
+        <div class="endpoint-row">
+          <span class="endpoint-label">POST /portability/hub</span>
+          <code id="hubSubscriptionUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">POST /portability/order</span>
+          <code id="bssAApiUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">POST validate-out</span>
+          <code id="validateOutUrl" class="endpoint-url">—</code>
+        </div>
+      </div>
+
+      <div class="actions center">
+        <button id="btnRegisterAllHubs" class="btn primary" type="button">Enregistrer BSS1 + BSS2 (Hub GW)</button>
+        <button id="btnSimulateAllWebhooks" class="btn secondary" type="button">Simuler webhooks BSS1 + BSS2</button>
+      </div>
+
+      <p class="hint center">REST : BSS → <strong>Hub Gateway</strong>. Webhooks : Hub → <strong>BSS Gateway</strong> → listener interne.</p>
+    </section>
+
+    <section class="panel bss-b">
+      <div class="panel-header">
+        <h2>BSS2</h2>
+        <span class="badge donor">Ancien opérateur · OUT</span>
+      </div>
+
+      <div class="gateway-strip">
+        <span class="gw-label">REST →</span>
+        <code class="gw-url hub-gw-ref">Hub GW</code>
+        <span class="gw-label">Webhooks ←</span>
+        <code id="bss2GatewayDisplay" class="gw-url">—</code>
+      </div>
+
+      <div class="actor-status" id="bss2HubStatus">
+        <span class="status-dot pending"></span>
+        <span>Abonnement Hub : non enregistré</span>
+      </div>
+
+      <div class="endpoint-box donor">
+        <div class="endpoint-row">
+          <span class="endpoint-label">Callback (BSS GW)</span>
+          <code id="bss2WebhookUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">Listener interne</span>
+          <code id="bss2ListenerUrl" class="endpoint-url">—</code>
+        </div>
+        <div class="endpoint-row">
+          <span class="endpoint-label">Query Hub</span>
+          <code class="endpoint-url">PortabilityOrderOutValidationNeededEvent, PortabilityOrderStateChangeEvent</code>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button id="btnRegisterBss2" class="btn secondary" type="button">POST /portability/hub (BSS2)</button>
+        <button id="btnSimulateBss2Webhook" class="btn ghost" type="button">Simuler webhook OutValidationNeeded</button>
+      </div>
+
+      <p class="hint">Webhooks <code>OutValidationNeeded</code> arrivent via la BSS2 Gateway — sélectionnez une demande pour valider.</p>
+
+      <div id="pendingOrders" class="donor-list empty">Aucune demande en attente…</div>
+
+      <form id="respondForm" class="respond-form hidden">
+        <h3>POST validate-out (BSS2 → Hub GW)</h3>
+        <input id="selectedOrderId" type="hidden">
+        <p id="selectedOrderSummary" class="selected-summary"></p>
+        <label>
+          Décision
+          <select id="validationStatus">
+            <option value="approved" selected>approved</option>
+            <option value="rejected">rejected</option>
+          </select>
+        </label>
+        <label id="confirmedDateField">
+          Date confirmée
+          <input id="confirmedPortDate" type="datetime-local">
+        </label>
+        <label id="rejectionField" class="hidden">
+          Raison du refus
+          <input id="rejectionReason" value="Non conforme">
+        </label>
+        <label>
+          Notes
+          <input id="validationNotes" value="Tout est conforme de notre côté">
+        </label>
+        <button id="btnValidateOut" class="btn primary" type="submit">Soumettre validate-out</button>
+      </form>
+
+      <div class="events-column compact">
+        <h3>Webhooks reçus (via BSS2 Gateway)</h3>
+        <div id="bssBEventsReceived" class="event-log empty">Aucun événement.</div>
+      </div>
+    </section>
+  </main>
+
+  <section class="panel timeline-panel">
+    <div class="panel-header">
+      <h2>Timeline des événements</h2>
+      <div class="timeline-actions">
+        <button id="btnRefreshTimeline" class="btn ghost small" type="button">Refresh</button>
+        <button id="btnClearEvents" class="btn ghost small" type="button">Clear</button>
+      </div>
+    </div>
+    <div id="timeline" class="timeline empty">Aucun événement — enregistrez les abonnements Hub puis créez un ordre port-in.</div>
+  </section>
+
+  <div id="toast" class="toast hidden"></div>
+  <script src="app.js?v=20"></script>
+</body>
+</html>

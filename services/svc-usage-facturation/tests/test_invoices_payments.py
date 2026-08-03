@@ -11,8 +11,8 @@ for name in list(sys.modules):
     if name == "app" or name.startswith("app."):
         del sys.modules[name]
 
-from services.shared.errors import ApiError
-from app.main import create_app
+from services.shared.errors import ApiError  # noqa: E402
+from app.main import create_app  # noqa: E402
 
 
 class Repository:
