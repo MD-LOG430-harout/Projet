@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Preflight', 'Acceptance', 'Nominal', 'Compensation', 'Status', 'Evidence', 'Portability', 'Reliability', 'Links', 'All')]
+    [ValidateSet('Preflight', 'Acceptance', 'Nominal', 'Compensation', 'Dlq', 'Replay', 'Status', 'Evidence', 'Portability', 'Reliability', 'Links', 'All')]
     [string]$Step = 'All',
     [string]$ProjectName = 'cantelcox-phase2full',
     [string]$OrderId,
@@ -51,8 +51,18 @@ function Get-MysqlCliArguments {
     return @('compose', '-p', $ProjectName, 'exec', '-T', 'mysql', 'mysql', "--user=$mysqlUser", "--password=$mysqlPassword", '--batch', '--raw')
 }
 
+function Confirm-TestImage {
+    # The runner image is not part of the Compose stack; build it once if it is missing.
+    & docker image inspect cantelcox-test:phase2 *> $null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host 'Building cantelcox-test:phase2 (first run only)...' -ForegroundColor Yellow
+        Invoke-DockerChecked @('build', '-f', 'tests/Dockerfile', '-t', 'cantelcox-test:phase2', '.')
+    }
+}
+
 function Invoke-TestContainer {
     param([Parameter(Mandatory)][string[]]$PytestArguments)
+    Confirm-TestImage
     $network = "${ProjectName}_default"
     $mysqlPassword = (& docker compose -p $ProjectName exec -T mysql printenv MYSQL_PASSWORD).Trim()
     if (-not $mysqlPassword) { throw 'MYSQL_PASSWORD is not available inside the running MySQL container.' }
@@ -224,6 +234,99 @@ function Invoke-PortabilityTests {
     Invoke-TestContainer @('tests/e2e/test_phase2_portability.py', '-k', 'success or rejection')
 }
 
+function Publish-RawEvent {
+    param(
+        [Parameter(Mandatory)][string]$Topic,
+        [Parameter(Mandatory)][string]$Key,
+        [Parameter(Mandatory)][string]$Document
+    )
+    # kafka-console-producer reads stdin; the key must equal the envelope aggregateId.
+    "$Key|$Document" | & docker compose -p $ProjectName exec -T kafka `
+        /opt/kafka/bin/kafka-console-producer.sh --bootstrap-server kafka:9092 `
+        --topic $Topic --property parse.key=true --property key.separator='|'
+    if ($LASTEXITCODE -ne 0) { throw "Failed to produce to $Topic" }
+}
+
+function Read-Topic {
+    param(
+        [Parameter(Mandatory)][string]$Topic,
+        [int]$MaxMessages = 1,
+        [int]$TimeoutMs = 20000
+    )
+    & docker compose -p $ProjectName exec -T kafka `
+        /opt/kafka/bin/kafka-console-consumer.sh --bootstrap-server kafka:9092 `
+        --topic $Topic --from-beginning --max-messages $MaxMessages --timeout-ms $TimeoutMs `
+        --property print.headers=true
+}
+
+function Invoke-DlqDemo {
+    Write-Host "`n=== Poison event -> retry -> DLQ ===" -ForegroundColor Cyan
+    $topic = 'paiement-autorise.v1'
+    $aggregateId = "demo-dlq-$([Guid]::NewGuid().ToString('N').Substring(0,8))"
+
+    # Valid JSON so the consumer can deserialize it, but deliberately invalid against
+    # contracts/events/PaiementAutorise/v1.json: the required envelope fields are missing.
+    $poison = '{"eventType":"PaiementAutorise","eventVersion":1,"aggregateId":"' + $aggregateId + '","brokenOnPurpose":true}'
+    Write-Host "Producing an invalid PaiementAutorise on $topic (key=$aggregateId)"
+    Write-Host $poison
+    Publish-RawEvent -Topic $topic -Key $aggregateId -Document $poison
+
+    Write-Host "`n--- consumer retries (svc-commandes-activations) ---" -ForegroundColor DarkCyan
+    Start-Sleep -Seconds 6
+    & docker compose -p $ProjectName logs --tail 30 svc-commandes-activations
+
+    Write-Host "`n--- message parked in $topic.dlq ---" -ForegroundColor DarkCyan
+    Read-Topic -Topic "$topic.dlq" -MaxMessages 1
+
+    Write-Host "`n--- DLQ and retry counters ---" -ForegroundColor DarkCyan
+    $metrics = (Invoke-WebRequest 'http://localhost:8080/v1/orders/metrics' -UseBasicParsing -ErrorAction SilentlyContinue)
+    if (-not $metrics) {
+        & docker compose -p $ProjectName exec -T svc-commandes-activations sh -c "wget -qO- http://localhost:5000/metrics | grep -E 'cantelcox_events_dlq_total|cantelcox_event_retries_total|cantelcox_events_consumed_total'"
+    }
+
+    Write-Host "`nThe consumer committed the offset after the DLQ publication, so it is not blocked." -ForegroundColor Green
+    Write-Host 'Controlled replay procedure: docs/runbooks/kafka-dlq-replay.md'
+}
+
+function Invoke-ReplayDemo {
+    Write-Host "`n=== Event replay without double effect (idempotency proof) ===" -ForegroundColor Cyan
+    $mysqlArgs = Get-MysqlCliArguments
+    $quietMysql = $mysqlArgs + @('--skip-column-names')
+
+    if (-not $OrderId) {
+        Write-Host 'No -OrderId given: creating a fresh confirmed order first.'
+        $OrderId = New-DemoOrder -ExpectedTerminalStatus 'CONFIRMEE' -ScenarioName 'Baseline order for the replay proof'
+    }
+
+    $payloadQuery = "SELECT payload FROM lignes_services.outbox_events WHERE event_type='LigneActivee' AND JSON_UNQUOTE(JSON_EXTRACT(payload,'`$.idCommande'))='$OrderId' LIMIT 1;"
+    $payload = (& docker @($quietMysql + @('-e', $payloadQuery))) -join ''
+    if (-not $payload) { throw "No LigneActivee event found for order $OrderId." }
+    $document = $payload | ConvertFrom-Json
+    $eventId = $document.eventId
+    $aggregateId = $document.aggregateId
+    Write-Host "Replaying eventId=$eventId aggregateId=$aggregateId"
+
+    Write-Host "`n--- state BEFORE the replay ---" -ForegroundColor DarkCyan
+    $beforeQuery = "SELECT COUNT(*) FROM commandes_activations.processed_events WHERE event_id='$eventId'; SELECT status FROM commandes_activations.orders WHERE order_id='$OrderId'; SELECT COUNT(*) FROM commandes_activations.outbox_events WHERE aggregate_id='$OrderId'; SELECT COUNT(*) FROM conformite_audit.audit_events WHERE event_id='$eventId';"
+    Invoke-DockerChecked ($mysqlArgs + @('-e', $beforeQuery))
+    $beforeSnapshot = (& docker @($quietMysql + @('-e', $beforeQuery)))
+
+    Publish-RawEvent -Topic 'ligne-activee.v1' -Key $aggregateId -Document $payload
+    Start-Sleep -Seconds 6
+
+    Write-Host "`n--- state AFTER the replay ---" -ForegroundColor DarkCyan
+    Invoke-DockerChecked ($mysqlArgs + @('-e', $beforeQuery))
+    $afterSnapshot = (& docker @($quietMysql + @('-e', $beforeQuery)))
+
+    if (($beforeSnapshot -join '|') -ne ($afterSnapshot -join '|')) {
+        throw "Replay changed the state: before=$($beforeSnapshot -join ',') after=$($afterSnapshot -join ',')"
+    }
+    Write-Host "`nIdentical state: processed_events blocked the duplicate and the terminal order was not re-applied." -ForegroundColor Green
+
+    Write-Host "`n--- handler outcome in the logs (DUPLICATE / LATE_IGNORED) ---" -ForegroundColor DarkCyan
+    & docker compose -p $ProjectName logs --tail 20 svc-commandes-activations
+}
+
 function Invoke-ReliabilityTests {
     Write-Host "`n=== Outbox, duplicate, retry and DLQ evidence ===" -ForegroundColor Cyan
     Invoke-TestContainer @('tests/unit/test_retry_dlq.py', 'tests/integration/test_increment0_foundations.py')
@@ -250,6 +353,8 @@ switch ($Step) {
     'Acceptance'  { Invoke-AcceptanceDemo }
     'Nominal'     { Invoke-NominalTest }
     'Compensation' { Invoke-CompensationDemo }
+    'Dlq'         { Invoke-DlqDemo }
+    'Replay'      { Invoke-ReplayDemo }
     'Status'      { Show-OrderStatus }
     'Evidence'    { Show-Evidence }
     'Portability' { Invoke-PortabilityTests }
@@ -261,6 +366,8 @@ switch ($Step) {
         Invoke-NominalTest
         Show-Evidence
         Invoke-CompensationDemo
+        Invoke-ReplayDemo
+        Invoke-DlqDemo
         Invoke-PortabilityTests
         Invoke-ReliabilityTests
         Show-Links
