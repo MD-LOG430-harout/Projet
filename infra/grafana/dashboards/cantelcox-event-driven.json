@@ -1,0 +1,103 @@
+{
+  "title": "CanTelcoX Event-Driven",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "10s",
+  "time": {"from": "now-15m", "to": "now"},
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "Kafka consumer lag by topic",
+      "description": "Broker lag: uncommitted records per subscribed topic, reported by each consumer group.",
+      "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short", "min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "sum(cantelcox_consumer_lag) by (service, topic)", "legendFormat": "{{service}} {{topic}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Outbox backlog",
+      "description": "Pending Outbox rows and age of the oldest one. Both return to zero once the relay has drained.",
+      "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": [
+        {"matcher": {"id": "byRegexp", "options": ".*oldest.*"}, "properties": [{"id": "unit", "value": "s"}]}
+      ]},
+      "targets": [
+        {"expr": "sum(cantelcox_outbox_pending) by (service)", "legendFormat": "pending {{service}}"},
+        {"expr": "max(cantelcox_outbox_oldest_event_age_seconds) by (service)", "legendFormat": "oldest age {{service}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Events produced per second",
+      "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "sum(rate(cantelcox_events_produced_total[1m])) by (event_type)", "legendFormat": "{{event_type}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Events consumed per second",
+      "description": "result=success for handled events, result=dlq for events routed to the dead letter queue.",
+      "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "reqps", "min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "sum(rate(cantelcox_events_consumed_total[1m])) by (service, result)", "legendFormat": "{{service}} {{result}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Retries and DLQ",
+      "description": "Technical retries before the third attempt, then publication to <topic>.dlq.",
+      "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "sum(rate(cantelcox_event_retries_total[5m])) by (service, stage)", "legendFormat": "retry {{service}} {{stage}}"},
+        {"expr": "sum(rate(cantelcox_events_dlq_total[5m])) by (source_topic)", "legendFormat": "dlq {{source_topic}}"}
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "DLQ messages (total)",
+      "gridPos": {"x": 12, "y": 16, "w": 6, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "short", "thresholds": {"mode": "absolute", "steps": [
+        {"color": "green", "value": null},
+        {"color": "red", "value": 1}
+      ]}}, "overrides": []},
+      "targets": [
+        {"expr": "sum(cantelcox_events_dlq_total) by (source_topic)", "legendFormat": "{{source_topic}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Saga convergence P95",
+      "description": "Time between order acceptance (202) and the terminal saga state.",
+      "gridPos": {"x": 18, "y": 16, "w": 6, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(cantelcox_saga_duration_seconds_bucket[5m])) by (le, outcome))", "legendFormat": "P95 {{outcome}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Saga transitions",
+      "description": "APPLIED advances the saga, DUPLICATE and LATE_IGNORED are the idempotency guards rejecting a replay.",
+      "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "sum(rate(cantelcox_saga_transitions_total[5m])) by (result)", "legendFormat": "{{result}}"}
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Event handler duration P95",
+      "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+      "fieldConfig": {"defaults": {"unit": "s", "min": 0}, "overrides": []},
+      "targets": [
+        {"expr": "histogram_quantile(0.95, sum(rate(cantelcox_event_processing_duration_seconds_bucket[5m])) by (le, service))", "legendFormat": "{{service}}"}
+      ]
+    }
+  ]
+}

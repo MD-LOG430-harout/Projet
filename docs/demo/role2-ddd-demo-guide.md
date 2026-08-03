@@ -29,9 +29,13 @@ Approximate timing:
 | 3:15-5:15 | Role 3 | Event flow, saga, Outbox, Kafka |
 | 5:15-6:45 | Role 4 | Deployment and hexagonal implementation |
 | 6:45-8:15 | Role 5 | Quality results, ADRs, risks, limits |
-| 8:15-11:30 | Demo | Nominal saga and evidence |
-| 11:30-13:30 | Demo | Compensation or PortabilityHub |
+| 8:15-11:30 | Demo | Nominal saga, then the end-to-end Jaeger trace |
+| 11:30-13:00 | Demo | Compensation, event replay, DLQ |
+| 13:00-13:30 | Demo | Grafana Event-Driven and the sync/event comparison |
 | 13:30-15:00 | Team | Conclusion and questions buffer |
+
+The step-by-step version of this run is
+[demo-15-minutes.md](demo-15-minutes.md).
 
 ## My 90-120 Second Script
 

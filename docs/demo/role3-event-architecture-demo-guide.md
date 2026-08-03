@@ -139,3 +139,31 @@ Answer:
 
 > My role is to explain the runtime story: one local transaction accepts the
 > command, then the saga advances through business facts published by Kafka.
+
+## Live Evidence I Own (Annexe D.2)
+
+| Claim | Command | What the room sees |
+|---|---|---|
+| End-to-end tracing | `-Step Acceptance`, then Jaeger | one trace, `POST /v1/orders` + `publish`/`consume` spans of the four services |
+| Replay without double effect | `-Step Replay` | identical state before/after, `DUPLICATE` in `cantelcox_saga_transitions_total` |
+| Retry then DLQ | `-Step Dlq` | record in `paiement-autorise.v1.dlq` with `attempts=3`, consumer still running |
+| Broker lag | Grafana `CanTelcoX Event-Driven` | `cantelcox_consumer_lag` per topic |
+
+Question: How does the trace survive the Outbox, since the relay publishes in
+another thread?
+
+Answer:
+
+> The relay has no ambient span, so the envelope `traceId` is the anchor. The
+> producer span is started under a context rebuilt from that `traceId`, the W3C
+> context is injected into the Kafka `traceparent` header, and the consumer
+> re-extracts it. That is what keeps REST, publish and consume in one trace.
+
+Question: What proves the replay was actually received rather than never
+delivered?
+
+Answer:
+
+> The `DUPLICATE` counter. `processed_events` reserves the `eventId` inside the
+> same transaction as the business effect, so the second delivery raises a
+> duplicate-key error that the handler normalises and reports.

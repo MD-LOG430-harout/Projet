@@ -13,8 +13,13 @@ pytest-cache-files-*/
 coverage.xml
 htmlcov/
 
-# Generated evidence artifacts
-docs/evidence/
+# Generated evidence artifacts, except the soutenance measurements which must
+# stay reviewable alongside the report. Git does not descend into an excluded
+# directory, so each level has to be re-opened explicitly.
+docs/evidence/*
+!docs/evidence/phase2/
+docs/evidence/phase2/*
+!docs/evidence/phase2/perf/
 
 # Local deployment/runtime state
 .deploy/

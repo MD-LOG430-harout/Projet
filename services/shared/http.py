@@ -20,8 +20,13 @@ def register_request_hooks(app, service_name):
         g.trace_id = incoming["trace_id"] if incoming else legacy_trace_id or fallback[:32].lower()
         g.w3c_trace_id = incoming["trace_id"] if incoming else fallback[:32].lower()
         g.traceparent = request.headers.get("traceparent") if incoming else traceparent_from_trace_id(g.w3c_trace_id)
+        # Anchor the span on the business trace id when the caller sent no W3C header.
+        # The Outbox relay publishes later, in another thread, and can only rebuild a
+        # traceparent from the envelope traceId; sharing the id keeps REST, publish and
+        # consume inside a single Jaeger trace.
+        parent_context = extract(request.headers) if incoming else extract({"traceparent": g.traceparent})
         g.otel_span_context = trace.get_tracer(service_name).start_as_current_span(
-            f"{request.method} {request.path}", context=extract(request.headers)
+            f"{request.method} {request.path}", context=parent_context
         )
         g.otel_span = g.otel_span_context.__enter__()
 

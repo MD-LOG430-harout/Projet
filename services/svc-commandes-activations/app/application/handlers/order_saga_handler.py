@@ -1,8 +1,12 @@
 from datetime import datetime, timezone
 
+from services.shared.event_metrics import SAGA_DURATION, SAGA_TRANSITIONS
 from services.shared.events import EventEnvelope
 from services.shared.outbox import MysqlOutboxRepository, run_in_transaction
 from services.shared.processed_events import DuplicateEvent, MysqlProcessedEventRepository
+
+
+SERVICE_NAME = "svc-commandes-activations"
 
 
 CANCELLATION_EVENTS = {
@@ -20,9 +24,12 @@ class OrderSagaHandler:
 
     def handle(self, event):
         try:
-            return run_in_transaction(self.connection_factory, lambda cursor: self._apply(cursor, event))
+            result = run_in_transaction(self.connection_factory, lambda cursor: self._apply(cursor, event))
         except DuplicateEvent:
-            return "DUPLICATE"
+            result = "DUPLICATE"
+        # APPLIED advances the saga; DUPLICATE and LATE_IGNORED are the idempotency guards.
+        SAGA_TRANSITIONS.labels(SERVICE_NAME, result).inc()
+        return result
 
     def _apply(self, cursor, event):
         event_type = event["eventType"]
@@ -119,7 +126,18 @@ class OrderSagaHandler:
             (status, "ACTIVE" if status == "CONFIRMEE" else "FAILED", source_event["eventType"], source_event["eventId"], saga["saga_id"]),
         )
         self.outbox.insert(cursor, resulting_event)
+        self._observe_saga_duration(cursor, saga["saga_id"], status)
         return "APPLIED"
+
+    def _observe_saga_duration(self, cursor, saga_id, status):
+        """Time between order acceptance and the terminal state, measured by the database clock."""
+        cursor.execute(
+            "SELECT TIMESTAMPDIFF(MICROSECOND, created_at, completed_at) AS elapsed FROM saga_state WHERE saga_id=%s",
+            (saga_id,),
+        )
+        row = cursor.fetchone()
+        if row and row["elapsed"] is not None:
+            SAGA_DURATION.labels(status).observe(float(row["elapsed"]) / 1_000_000)
 
 
 class SagaTimeoutScanner:
