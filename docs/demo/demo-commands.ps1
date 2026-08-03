@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Preflight', 'Acceptance', 'Nominal', 'Compensation', 'Dlq', 'Replay', 'Status', 'Evidence', 'Portability', 'Reliability', 'Links', 'All')]
+    [ValidateSet('Preflight', 'Acceptance', 'Nominal', 'Compensation', 'Dlq', 'Replay', 'Decoupling', 'Status', 'Evidence', 'Portability', 'Reliability', 'Links', 'All')]
     [string]$Step = 'All',
     [string]$ProjectName = 'cantelcox-phase2full',
     [string]$OrderId,
@@ -365,6 +365,65 @@ function Invoke-ReplayDemo {
     Write-Host '  APPLIED advanced the saga; DUPLICATE is the replay that was refused.'
 }
 
+function Invoke-MeasureScript {
+    param(
+        [Parameter(Mandatory)][string]$Script,
+        [Parameter(Mandatory)][string[]]$ScriptArguments,
+        [hashtable]$Environment = @{}
+    )
+    Confirm-TestImage
+    $arguments = @('run', '--rm', '--network', "${ProjectName}_default",
+        '-v', "${RepoRoot}:/repo", '-w', '/repo', '-e', 'BASE=http://api-gateway')
+    foreach ($name in $Environment.Keys) { $arguments += @('-e', "$name=$($Environment[$name])") }
+    $arguments += @('cantelcox-test:phase2', 'python', $Script) + $ScriptArguments
+    & docker @arguments
+    if ($LASTEXITCODE -ne 0) { throw "Measurement script $Script failed." }
+}
+
+function Invoke-DecouplingDemo {
+    Write-Host "`n=== Measured comparison: synchronous vs event-driven dependency ===" -ForegroundColor Cyan
+    $mysqlArgs = Get-MysqlCliArguments
+
+    Write-Host "`n--- 1. Full stack, 20 orders ---" -ForegroundColor DarkCyan
+    Invoke-MeasureScript -Script 'tests/load/measure_saga_latency.py' `
+        -ScriptArguments @('nominal-event-driven') -Environment @{ N = 20 }
+
+    Write-Host "`n--- 2. Event-driven downstream stopped (svc-lignes-services) ---" -ForegroundColor DarkCyan
+    Invoke-DockerChecked @('compose', '-p', $ProjectName, 'stop', 'svc-lignes-services') -Quiet
+    try {
+        Invoke-MeasureScript -Script 'tests/load/measure_saga_latency.py' `
+            -ScriptArguments @('lignes-down') -Environment @{ N = 3 }
+        Write-Host '  Orders are still accepted with 202 while the saga waits.' -ForegroundColor Green
+    }
+    finally {
+        Invoke-DockerChecked @('compose', '-p', $ProjectName, 'start', 'svc-lignes-services') -Quiet
+    }
+    Write-Host "`n  Waiting for the pending sagas to converge on their own..."
+    Start-Sleep -Seconds 25
+    Write-Host '  sagas still EN_COURS (expected 0):'
+    Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT COUNT(*) AS still_running FROM commandes_activations.saga_state WHERE status='EN_COURS';"))
+
+    Write-Host "`n--- 3. Synchronous dependency stopped (svc-catalogue-offres) ---" -ForegroundColor DarkCyan
+    $job = Start-Job -ScriptBlock {
+        param($project, $repoRoot)
+        docker run --rm --network "${project}_default" -v "${repoRoot}:/repo" -w /repo `
+            -e BASE=http://api-gateway -e WAIT_SECONDS=25 `
+            cantelcox-test:phase2 python tests/load/measure_sync_dependency.py catalogue-offres-down
+    } -ArgumentList $ProjectName, $RepoRoot
+    try {
+        Start-Sleep -Seconds 14
+        Invoke-DockerChecked @('compose', '-p', $ProjectName, 'stop', 'svc-catalogue-offres') -Quiet
+        Wait-Job $job -Timeout 180 | Out-Null
+        Receive-Job $job
+    }
+    finally {
+        Remove-Job $job -Force -ErrorAction SilentlyContinue
+        Invoke-DockerChecked @('compose', '-p', $ProjectName, 'up', '-d', '--wait', 'svc-catalogue-offres') -Quiet
+    }
+    Write-Host "`nSame endpoint, two dependency styles: the synchronous one propagates the outage to the client." -ForegroundColor Green
+    Write-Host 'Commentary and reference figures: docs/demo/mesures-et-gains.md'
+}
+
 function Invoke-ReliabilityTests {
     Write-Host "`n=== Outbox, duplicate, retry and DLQ evidence ===" -ForegroundColor Cyan
     Invoke-TestContainer @('tests/unit/test_retry_dlq.py', 'tests/integration/test_increment0_foundations.py')
@@ -393,6 +452,7 @@ switch ($Step) {
     'Compensation' { Invoke-CompensationDemo }
     'Dlq'         { Invoke-DlqDemo }
     'Replay'      { Invoke-ReplayDemo }
+    'Decoupling'  { Invoke-DecouplingDemo }
     'Status'      { Show-OrderStatus }
     'Evidence'    { Show-Evidence }
     'Portability' { Invoke-PortabilityTests }

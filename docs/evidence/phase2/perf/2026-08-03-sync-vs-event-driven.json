@@ -1,0 +1,47 @@
+{
+  "measuredOn": "2026-08-03",
+  "stack": "docker compose -p cantelcox-phase2full (18 conteneurs, poste Windows 11, Docker 29.4.3)",
+  "method": "docs/demo/mesures-et-gains.md, section Protocole. Client HTTP execute dans cantelcox-test:phase2 sur le reseau compose, via l'API Gateway.",
+  "runs": [
+    {
+      "label": "nominal-event-driven",
+      "description": "Pile complete, 20 commandes consecutives.",
+      "samples": 20,
+      "statusCodes": {"202": 20},
+      "acceptanceMsP50": 78.7,
+      "acceptanceMsP95": 115.9,
+      "acceptanceMsMean": 78.3,
+      "terminalStates": {"CONFIRMEE": 20},
+      "completionMsP50": 966.7,
+      "completionMsP95": 1519.4
+    },
+    {
+      "label": "lignes-down",
+      "description": "svc-lignes-services arrete: dependance aval joignable uniquement par evenements.",
+      "samples": 5,
+      "statusCodes": {"202": 5},
+      "acceptanceMsP50": 70.7,
+      "acceptanceMsP95": 116.2,
+      "acceptanceMsMean": 81.8,
+      "terminalStates": {"TIMEOUT": 5},
+      "note": "TIMEOUT = encore EN_COURS apres 60 s de polling, pas un echec. Apres redemarrage du service, les 5 sagas ont converge: 0 saga EN_COURS residuelle."
+    },
+    {
+      "label": "catalogue-offres-down",
+      "description": "svc-catalogue-offres arrete: dependance appelee synchroniquement par POST /v1/orders pour valider l'offre.",
+      "samples": 5,
+      "statusCodes": {"500": 5},
+      "latenciesMs": [2655.6, 3828.5, 2597.9, 3883.5, 2577.4],
+      "note": "Aucune commande acceptee. La latence observee est celle des timeouts de l'appel synchrone."
+    }
+  ],
+  "testSuite": {
+    "command": "pytest tests/unit tests/contracts tests/integration tests/e2e (image cantelcox-test:phase2, reseau compose)",
+    "result": "46 passed, 9 skipped, 0 failed",
+    "knownFlake": "tests/integration/test_increment0_foundations.py::test_outbox_relay_ack_failure_retry_and_two_poller_exclusion echoue par intermittence quand les relais Outbox des services en marche reclament la ligne de test avant le relai instancie par le test. Passe systematiquement en isolation."
+  },
+  "tracing": {
+    "check": "GET /api/traces/{traceId} sur Jaeger apres une commande nominale",
+    "result": "trace unique de 35 spans couvrant les 6 services, de POST /v1/orders jusqu'a consume commande-confirmee.v1"
+  }
+}
