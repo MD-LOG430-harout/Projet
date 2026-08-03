@@ -23,7 +23,19 @@ function Invoke-DockerChecked {
         [Parameter(Mandatory)][string[]]$Arguments,
         [switch]$Quiet
     )
-    $output = & docker @Arguments
+    if ($Quiet) {
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        & docker @Arguments *> $null
+        $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
+        if ($exitCode -ne 0) {
+            throw "docker command failed with exit code $exitCode"
+        }
+        return
+    } else {
+        $output = & docker @Arguments
+    }
     if ($output -and -not $Quiet) {
         $output | ForEach-Object { Write-Host $_ }
     }
@@ -162,8 +174,9 @@ function Invoke-CompensationDemo {
 
 function Show-OrderStatus {
     if (-not $OrderId) { throw 'Pass -OrderId when using -Step Status.' }
-    $status = Invoke-RestMethod "http://localhost:8080/v1/orders/$OrderId/status" -TimeoutSec 5
-    Write-Host ($status | ConvertTo-Json -Depth 5)
+    $mysqlArgs = Get-MysqlCliArguments
+    Write-Host "`n=== Persisted order status ===" -ForegroundColor Cyan
+    Invoke-DockerChecked ($mysqlArgs + @('-e', "SELECT order_id,saga_id,status,terminal_reason FROM commandes_activations.orders WHERE order_id='$OrderId'; SELECT saga_id,status,payment_status,line_status,portability_status FROM commandes_activations.saga_state WHERE order_id='$OrderId';"))
 }
 
 function Show-DatabaseInspection {
