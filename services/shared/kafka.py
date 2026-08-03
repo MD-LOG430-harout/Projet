@@ -96,7 +96,14 @@ class KafkaEnvelopePublisher:
         if document["aggregateId"] != aggregate_id:
             raise ValueError("Kafka key must equal envelope aggregateId")
         topic = EVENT_TOPICS[event_type]
-        with _tracer.start_as_current_span(f"publish {topic}", kind=SpanKind.PRODUCER) as span:
+        # The Outbox relay runs in its own thread with no ambient span, so the envelope
+        # traceId is the only link back to the request that created the event.
+        parent_context = extract_context(
+            {"traceparent": traceparent_from_trace_id(document["traceId"])}
+        )
+        with _tracer.start_as_current_span(
+            f"publish {topic}", context=parent_context, kind=SpanKind.PRODUCER
+        ) as span:
             span.set_attribute("messaging.system", "kafka")
             span.set_attribute("messaging.destination.name", topic)
             span.set_attribute("cantelcox.event_type", event_type)
@@ -208,7 +215,7 @@ def _header_carrier(record) -> dict[str, str]:
 
 
 def _trace_headers(trace_id: str) -> list[tuple[str, bytes]]:
-    """Propagate the live span when tracing is on, otherwise keep the envelope trace id."""
+    """Propagate the producer span; fall back to the envelope trace id if tracing is off."""
     carrier: dict[str, str] = {}
     inject_context(carrier)
     if "traceparent" not in carrier:
