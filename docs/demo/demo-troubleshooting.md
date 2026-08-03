@@ -158,3 +158,41 @@ that login succeeds, `GET`/`POST` contract rules are respected, no `PUT` is used
 but the supplied WebConsole returns an incompatible representation and the saga
 compensates with `SUBSCRIBER_CONFLICT`.
 
+
+## Nouveaux steps de la soutenance 15 minutes
+
+### `-Step Replay` echoue avec "No LigneActivee event found"
+
+La commande de reference n'a pas de `LigneActivee` en base, en general parce que
+la saga s'est terminee en `ANNULEE`. Relancer sans `-OrderId` : le step cree
+alors sa propre commande nominale avant de rejouer l'evenement.
+
+### `-Step Dlq` affiche "No DLQ record read back"
+
+Le topic `.dlq` n'a pas encore recu le message. Attendre cinq secondes et
+relancer le step. Si le message n'arrive toujours pas, verifier que
+`svc-commandes-activations` est sain : c'est lui qui publie vers le DLQ.
+
+### `-Step Decoupling` laisse un service arrete
+
+Le step restaure `svc-lignes-services` et `svc-catalogue-offres` dans son bloc
+`finally`, mais en cas d'interruption au clavier :
+
+```powershell
+docker compose -p cantelcox-phase2full up -d --wait svc-lignes-services svc-catalogue-offres
+```
+
+### `cantelcox-test:phase2` manquante
+
+Elle est desormais construite automatiquement au premier step qui en a besoin.
+Pour la construire a l'avance :
+
+```powershell
+docker build -f tests/Dockerfile -t cantelcox-test:phase2 .
+```
+
+### La trace Jaeger ne montre qu'un seul span
+
+Verifier que le client envoie bien un en-tete `TraceId` ou `traceparent`, et que
+`OTEL_SDK_DISABLED=false`. Sans en-tete, chaque requete ouvre sa propre trace et
+la correlation avec les evenements se perd.

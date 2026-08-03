@@ -11,9 +11,13 @@
 - [ ] Verify `HLR_ENABLED=false`, `HLR_FORCE_FAILURE=false`, and `PAYMENT_GATEWAY_FORCE_REFUSAL=false`.
 - [ ] Run `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Acceptance` once.
 - [ ] Run `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Compensation` once.
+- [ ] Run `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Replay` once.
+- [ ] Run `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Dlq` once.
 - [ ] Run `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Portability` once.
-- [ ] Confirm Jaeger contains at least recent CanTelcoX traces, or prepare audit correlation as the fallback.
+- [ ] Confirm `docker image inspect cantelcox-test:phase2` succeeds (the first `-Step Replay` builds it).
+- [ ] Open one Jaeger trace of `POST /v1/orders` and confirm it contains the `publish` and `consume` spans of all four services.
 - [ ] Confirm Grafana `CanTelcoX Golden Signals` has traffic and latency panels populated.
+- [ ] Confirm Grafana `CanTelcoX Event-Driven` shows consumer lag, Outbox backlog and saga panels.
 
 ## During presentation
 
@@ -23,12 +27,18 @@
 - [ ] `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Acceptance`
   Expected: `HTTP 202`, `Location`, `EN_COURS`, same replayed `orderId`, final `CONFIRMEE`.
 - [ ] Point to the printed order row, `saga_state`, `outbox_events`, `processed_events`, and audit records.
+- [ ] Show the Jaeger trace of the order: one trace, `publish` and `consume` spans across the four services.
 - [ ] `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Compensation`
   Expected: billing service is recreated only once each way, final order state is `ANNULEE`, nominal payment flag is restored.
+- [ ] `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Replay`
+  Expected: identical state before and after, and `DUPLICATE` in the saga transition counters.
+- [ ] `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Dlq`
+  Expected: a record in `paiement-autorise.v1.dlq` with `attempts=3`, and the consumer still running.
 - [ ] `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Portability`
   Expected: `2 passed, 2 deselected`.
 - [ ] Show Jaeger, Grafana, and Prometheus links with `powershell -ExecutionPolicy Bypass -File docs\demo\demo-commands.ps1 -Step Links -OpenDashboards`.
-- [ ] Close with slide 4 and the measured results plus honest limitations.
+- [ ] Show the `CanTelcoX Event-Driven` dashboard, then the comparison table in `docs/demo/mesures-et-gains.md`.
+- [ ] Close with slide 5 and the measured results plus honest limitations.
 
 ## Fallback actions
 

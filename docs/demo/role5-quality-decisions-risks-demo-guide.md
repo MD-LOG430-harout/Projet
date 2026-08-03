@@ -147,3 +147,38 @@ Answer:
 
 > My role is to be honest about evidence: the architecture improves resilience
 > and traceability, but only measured targets can be claimed as achieved.
+
+## Measured Figures I Must Quote Exactly
+
+Source: `docs/demo/mesures-et-gains.md`, raw evidence in
+`docs/evidence/phase2/perf/2026-08-03-sync-vs-event-driven.json`.
+
+- Order acceptance P95: **116 ms** (target < 250 ms, met).
+- Saga convergence P95: **1.5 s**, 20/20 `CONFIRMEE`.
+- Test suite: **46 passed, 9 skipped, 0 failed**.
+- Synchronous dependency stopped: **5 x HTTP 500** in 2.6-3.9 s.
+- Event-driven dependency stopped: **5 x HTTP 202**, then automatic convergence,
+  0 saga left in `EN_COURS`.
+
+Limits I state before being asked:
+
+- Throughput was not replayed on this machine, so the 1000 ops/s target is not
+  demonstrated by these numbers.
+- Prometheus counters under-report: two gunicorn workers, one registry each, and
+  a scrape only reaches one of them.
+- `test_increment0_foundations.py::test_outbox_relay_ack_failure_retry_and_two_poller_exclusion`
+  is flaky when the running services' Outbox relays claim the test row first. It
+  passes in isolation.
+- `SagaTimeoutScanner` exists but is not wired on the order side, so the 60 s
+  `deadline_at` is persisted and never enforced. The portability timeout scanner
+  is wired.
+- Real free5GC success is not validated.
+
+Question: Why not compare against Phase 1 numbers directly?
+
+Answer:
+
+> The Phase 1 code was replaced, so archived figures measured on another machine
+> would not be comparable. Instead we cut, in turn, the two dependencies of the
+> same `POST /v1/orders` request: one called synchronously, one reached through
+> events. That isolates exactly what the event-driven style changes.
