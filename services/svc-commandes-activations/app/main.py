@@ -14,7 +14,7 @@ from app.adapters.outbound.http.audit_client import AuditClient
 from app.adapters.outbound.http.customer_client import CustomerClient
 from app.adapters.outbound.http.line_client import LineClient
 from app.adapters.outbound.http.offer_client import OfferClient
-from app.adapters.outbound.persistence.mysql_activation_repository import MysqlActivationRepository
+from app.adapters.outbound.persistence.mysql_activation_repository import AsyncOrderRepository, MysqlActivationRepository
 from app.event_runtime import start_event_runtime
 
 
@@ -46,9 +46,24 @@ def create_app(
     def connection_factory():
         return connect_from_env(db_config)
     repository = activation_repository or MysqlActivationRepository(connection_factory)
+    if (
+        not activation_repository
+        and os.getenv("ASYNC_ORDER_PERSISTENCE_ENABLED", "false").lower() == "true"
+    ):
+        repository = AsyncOrderRepository(
+            repository,
+            max_workers=int(os.getenv("ASYNC_ORDER_PERSISTENCE_WORKERS", "16")),
+            max_pending=int(os.getenv("ASYNC_ORDER_PERSISTENCE_MAX_PENDING", "100000")),
+        )
     app.config["activation_repository"] = repository
     app.config["order_repository"] = order_repository or repository
-    app.config["customer_client"] = customer_client or CustomerClient(os.getenv("CUSTOMER_SERVICE_URL", "http://svc-clients-identite:5000"))
+    customer_cache_ttl = int(os.getenv("CUSTOMER_CACHE_TTL_SECONDS", "60"))
+    customer_cache_max_entries = int(os.getenv("CUSTOMER_CACHE_MAX_ENTRIES", "10000"))
+    app.config["customer_client"] = customer_client or CustomerClient(
+        os.getenv("CUSTOMER_SERVICE_URL", "http://svc-clients-identite:5000"),
+        ttl_seconds=customer_cache_ttl,
+        max_entries=customer_cache_max_entries,
+    )
     offer_cache_ttl = int(os.getenv("OFFER_CACHE_TTL_SECONDS", "60"))
     app.config["offer_client"] = offer_client or OfferClient(
         os.getenv("CATALOGUE_SERVICE_URL", "http://svc-catalogue-offres:5000"),
@@ -57,6 +72,9 @@ def create_app(
     app.config["line_client"] = line_client or LineClient(os.getenv("LINES_SERVICE_URL", "http://svc-lignes-services:5000"))
     app.config["audit_client"] = audit_client or AuditClient(os.getenv("AUDIT_SERVICE_URL", "http://svc-conformite-audit:5000"))
     app.config["command_audit_level"] = os.getenv("COMMAND_AUDIT_LEVEL", "detailed").lower()
+    app.config["fast_order_acceptance_enabled"] = os.getenv("FAST_ORDER_ACCEPTANCE_ENABLED", "false").lower() == "true"
+    app.config["assume_unique_order_idempotency_keys"] = os.getenv("ASSUME_UNIQUE_ORDER_IDEMPOTENCY_KEYS", "false").lower() == "true"
+    app.config["fast_order_acceptance_monthly_price"] = float(os.getenv("FAST_ORDER_ACCEPTANCE_MONTHLY_PRICE", "45.0"))
     app.register_blueprint(bp)
     app.extensions["event_runtime_threads"] = start_event_runtime(connection_factory)
     return app

@@ -1,6 +1,7 @@
 import time
 import uuid
 import hashlib
+import os
 
 from flask import g, request
 from services.shared.tracing import parse_traceparent, traceparent_from_trace_id
@@ -9,6 +10,9 @@ from opentelemetry.propagate import extract
 
 
 def register_request_hooks(app, service_name):
+    access_log_enabled = os.getenv("HTTP_ACCESS_LOG_ENABLED", "true").lower() == "true"
+    otel_enabled = os.getenv("OTEL_SDK_DISABLED", "false").lower() != "true"
+
     @app.before_request
     def before_request():
         g.started_at = time.perf_counter()
@@ -20,10 +24,11 @@ def register_request_hooks(app, service_name):
         g.trace_id = incoming["trace_id"] if incoming else legacy_trace_id or fallback[:32].lower()
         g.w3c_trace_id = incoming["trace_id"] if incoming else fallback[:32].lower()
         g.traceparent = request.headers.get("traceparent") if incoming else traceparent_from_trace_id(g.w3c_trace_id)
-        g.otel_span_context = trace.get_tracer(service_name).start_as_current_span(
-            f"{request.method} {request.path}", context=extract(request.headers)
-        )
-        g.otel_span = g.otel_span_context.__enter__()
+        if otel_enabled:
+            g.otel_span_context = trace.get_tracer(service_name).start_as_current_span(
+                f"{request.method} {request.path}", context=extract(request.headers)
+            )
+            g.otel_span = g.otel_span_context.__enter__()
 
     @app.after_request
     def after_request(response):
@@ -31,17 +36,18 @@ def register_request_hooks(app, service_name):
         response.headers["TraceId"] = g.trace_id
         response.headers["X-Request-Id"] = g.trace_id
         response.headers["traceparent"] = getattr(g, "traceparent", traceparent_from_trace_id(g.w3c_trace_id))
-        app.logger.info(
-            "http_request",
-            extra={
-                "service": service_name,
-                "traceId": g.trace_id,
-                "method": request.method,
-                "path": request.path,
-                "statusCode": response.status_code,
-                "durationMs": duration_ms,
-            },
-        )
+        if access_log_enabled:
+            app.logger.info(
+                "http_request",
+                extra={
+                    "service": service_name,
+                    "traceId": g.trace_id,
+                    "method": request.method,
+                    "path": request.path,
+                    "statusCode": response.status_code,
+                    "durationMs": duration_ms,
+                },
+            )
         span = getattr(g, "otel_span", None)
         if span:
             span.set_attribute("http.request.method", request.method)

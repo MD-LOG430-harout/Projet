@@ -48,6 +48,9 @@ def create_order():
         current_app.config["offer_client"],
         current_app.config.get("audit_client"),
         audit_level=current_app.config.get("command_audit_level", "detailed"),
+        fast_acceptance_enabled=current_app.config.get("fast_order_acceptance_enabled", False),
+        assume_unique_idempotency_keys=current_app.config.get("assume_unique_order_idempotency_keys", False),
+        fast_acceptance_monthly_price=current_app.config.get("fast_order_acceptance_monthly_price", 45.0),
     )
     body, status_code, replayed = use_case.execute(request.get_json(silent=True) or {}, idempotency_key, trace_id=g.trace_id)
     response = jsonify(body)

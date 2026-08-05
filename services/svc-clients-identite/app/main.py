@@ -9,7 +9,7 @@ from services.shared.metrics import register_metrics
 from services.shared.mysql import connect_from_env
 from services.shared.tracing import initialize_tracing, OtelSettings
 
-from app.adapters.inbound.rest.routes import bp
+from app.adapters.inbound.rest.routes import VerifiedChallengeCache, bp
 from app.adapters.outbound.http.audit_client import AuditClient
 from app.adapters.outbound.persistence.mysql_customer_repository import MysqlCustomerRepository
 from app.adapters.outbound.persistence.mysql_mfa_repository import MysqlMfaRepository
@@ -37,6 +37,7 @@ def create_app(customer_repository=None, mfa_repository=None, audit_client=None)
         return connect_from_env(db_config)
     app.config["customer_repository"] = customer_repository or MysqlCustomerRepository(connection_factory)
     app.config["mfa_repository"] = mfa_repository or MysqlMfaRepository(connection_factory)
+    app.config["verified_challenge_cache"] = VerifiedChallengeCache()
 
     audit_url = os.getenv("AUDIT_SERVICE_URL")
     if audit_client is not None:

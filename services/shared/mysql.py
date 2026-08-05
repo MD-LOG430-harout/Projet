@@ -11,5 +11,6 @@ def connect_from_env(config):
         charset="utf8mb4",
         autocommit=False,
         cursorclass=pymysql.cursors.DictCursor,
+        init_command="SET SESSION TRANSACTION ISOLATION LEVEL READ COMMITTED",
     )
 

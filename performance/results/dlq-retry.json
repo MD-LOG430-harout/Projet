@@ -1,0 +1,5 @@
+{
+  "status": "not_executed",
+  "reason": "Unit-level retry/DLQ tests exist, but the host Python executable was inaccessible and no controlled end-to-end malformed event campaign was completed.",
+  "measured_values": null
+}

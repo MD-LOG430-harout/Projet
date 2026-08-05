@@ -2,9 +2,15 @@ import random
 import string
 import time
 import uuid
+import os
 from itertools import count
+from threading import Lock
 
-from locust import HttpUser, between, task
+from locust import FastHttpUser, HttpUser, between, task
+
+
+STEADY_STATE_ONLY = os.getenv("LOCUST_STEADY_STATE_ONLY", "false").lower() == "true"
+PHASE2_ORDERS_ONLY = os.getenv("LOCUST_PHASE2_ORDERS_ONLY", "false").lower() == "true"
 
 _msisdn_counter = count()
 
@@ -34,7 +40,10 @@ class CanTelcoXPhase1User(HttpUser):
     scope, so they are not included in the official load scenario.
     """
 
-    wait_time = between(0.05, 0.2)
+    wait_time = between(
+        float(os.getenv("LOCUST_WAIT_MIN_SECONDS", "0.0")),
+        float(os.getenv("LOCUST_WAIT_MAX_SECONDS", "0.02")),
+    )
 
     def on_start(self):
         self.email = f"load-{_suffix()}@example.test"
@@ -220,3 +229,204 @@ class CanTelcoXPhase1User(HttpUser):
                 return
             if _json(response).get("activationId") != activation_id:
                 response.failure("idempotency replay returned a different activationId")
+
+
+class CanTelcoXSteadyStateOffersUser(FastHttpUser):
+    _shared_token = None
+    _shared_token_lock = Lock()
+
+    wait_time = between(
+        float(os.getenv("LOCUST_WAIT_MIN_SECONDS", "0.0")),
+        float(os.getenv("LOCUST_WAIT_MAX_SECONDS", "0.0")),
+    )
+
+    def on_start(self):
+        self.session_token = self._get_shared_token()
+
+    def _trace(self):
+        return f"steady-{_suffix(12)}"
+
+    def _get_shared_token(self):
+        if CanTelcoXSteadyStateOffersUser._shared_token:
+            return CanTelcoXSteadyStateOffersUser._shared_token
+        with CanTelcoXSteadyStateOffersUser._shared_token_lock:
+            if not CanTelcoXSteadyStateOffersUser._shared_token:
+                CanTelcoXSteadyStateOffersUser._shared_token = self._register_and_login()
+            return CanTelcoXSteadyStateOffersUser._shared_token
+
+    def _register_and_login(self):
+        trace = self._trace()
+        email = f"steady-{_suffix()}@example.test"
+        password = "Stronger123"
+        register_response = self.client.post(
+            "/v1/customers/register",
+            json={
+                "email": email,
+                "password": password,
+                "displayName": "Steady Test",
+                "legalName": "Steady Test",
+                "address": {
+                    "line1": "123 Rue Charge",
+                    "city": "Montreal",
+                    "province": "QC",
+                    "postalCode": "H1A1A1",
+                },
+                "identityDocument": {
+                    "type": "driver_license",
+                    "number": f"SIM-QC-{_suffix(10)}",
+                },
+                "customerType": "individual",
+            },
+            headers={"TraceId": trace},
+            name="setup register",
+        )
+        if register_response.status_code != 201:
+            return None
+        login_response = self.client.post(
+            "/v1/auth/login",
+            json={"email": email, "password": password},
+            headers={"TraceId": trace},
+            name="setup login",
+        )
+        if login_response.status_code != 202:
+            return None
+        login_payload = _json(login_response)
+        verified_response = self.client.post(
+            "/v1/auth/mfa/verify",
+            json={"challengeId": login_payload.get("challengeId"), "otp": login_payload.get("devOtp")},
+            headers={"TraceId": trace},
+            name="setup MFA verify",
+        )
+        if verified_response.status_code == 200:
+            return _json(verified_response).get("sessionToken")
+        return None
+
+    @task
+    def consult_offers(self):
+        if not self.session_token:
+            return
+        with self.client.get(
+            "/v1/offers",
+            headers={"Authorization": f"Bearer {self.session_token}", "TraceId": self._trace()},
+            name="steady consult offers",
+            catch_response=True,
+        ) as response:
+            if response.status_code != 200:
+                response.failure(f"expected 200, got {response.status_code}")
+
+
+class CanTelcoXPhase2OrdersUser(FastHttpUser):
+    _shared_customer_id = None
+    _shared_token = None
+    _shared_setup_lock = Lock()
+
+    wait_time = between(
+        float(os.getenv("LOCUST_WAIT_MIN_SECONDS", "0.0")),
+        float(os.getenv("LOCUST_WAIT_MAX_SECONDS", "0.0")),
+    )
+
+    def on_start(self):
+        self.customer_id, self.session_token = self._get_shared_setup()
+        self.offer_id = os.getenv("LOCUST_OFFER_ID", "forfait-5g-20gb")
+
+    def _trace(self):
+        return f"phase2-{_suffix(12)}"
+
+    def _get_shared_setup(self):
+        if CanTelcoXPhase2OrdersUser._shared_customer_id and CanTelcoXPhase2OrdersUser._shared_token:
+            return CanTelcoXPhase2OrdersUser._shared_customer_id, CanTelcoXPhase2OrdersUser._shared_token
+        with CanTelcoXPhase2OrdersUser._shared_setup_lock:
+            if not CanTelcoXPhase2OrdersUser._shared_customer_id or not CanTelcoXPhase2OrdersUser._shared_token:
+                customer_id, token = self._register_and_login()
+                CanTelcoXPhase2OrdersUser._shared_customer_id = customer_id
+                CanTelcoXPhase2OrdersUser._shared_token = token
+            return CanTelcoXPhase2OrdersUser._shared_customer_id, CanTelcoXPhase2OrdersUser._shared_token
+
+    def _register_and_login(self):
+        trace = self._trace()
+        email = f"phase2-{_suffix()}@example.test"
+        password = "Stronger123"
+        register_response = self.client.post(
+            "/v1/customers/register",
+            json={
+                "email": email,
+                "password": password,
+                "displayName": "Phase 2 Locust",
+                "legalName": "Phase 2 Locust",
+                "address": {
+                    "line1": "123 Rue Charge",
+                    "city": "Montreal",
+                    "province": "QC",
+                    "postalCode": "H1A1A1",
+                },
+                "identityDocument": {
+                    "type": "driver_license",
+                    "number": f"SIM-QC-{_suffix(10)}",
+                },
+                "customerType": "individual",
+            },
+            headers={"TraceId": trace},
+            name="setup phase2 register",
+        )
+        if register_response.status_code != 201:
+            return None, None
+        customer_id = _json(register_response).get("customerId")
+        login_response = self.client.post(
+            "/v1/auth/login",
+            json={"email": email, "password": password},
+            headers={"TraceId": trace},
+            name="setup phase2 login",
+        )
+        if login_response.status_code != 202:
+            return None, None
+        login_payload = _json(login_response)
+        verified_response = self.client.post(
+            "/v1/auth/mfa/verify",
+            json={"challengeId": login_payload.get("challengeId"), "otp": login_payload.get("devOtp")},
+            headers={"TraceId": trace},
+            name="setup phase2 MFA verify",
+        )
+        if verified_response.status_code != 200:
+            return None, None
+        return customer_id, _json(verified_response).get("sessionToken")
+
+    @task
+    def create_order(self):
+        if not self.customer_id or not self.session_token:
+            return
+        trace = self._trace()
+        headers = {
+            "Authorization": f"Bearer {self.session_token}",
+            "TraceId": trace,
+            "Idempotency-Key": f"locust-phase2-order-{_suffix(16)}",
+        }
+        with self.client.post(
+            "/v1/orders",
+            json={
+                "customerId": self.customer_id,
+                "offerId": self.offer_id,
+                "quantity": 1,
+                "orderType": "NEW_PLAN",
+                "numberMode": "NEW",
+            },
+            headers=headers,
+            name="Phase2 event-driven create order",
+            catch_response=True,
+        ) as response:
+            if response.status_code != 202:
+                response.failure(f"expected 202, got {response.status_code}")
+                return
+            body = _json(response)
+            if not body.get("orderId") or not body.get("sagaId") or body.get("status") != "EN_COURS":
+                response.failure("missing event-driven order acceptance fields")
+
+
+if PHASE2_ORDERS_ONLY:
+    CanTelcoXPhase1User.abstract = True
+    CanTelcoXSteadyStateOffersUser.abstract = True
+elif STEADY_STATE_ONLY:
+    CanTelcoXPhase1User.abstract = True
+    CanTelcoXPhase2OrdersUser.abstract = True
+else:
+    CanTelcoXSteadyStateOffersUser.abstract = True
+    CanTelcoXPhase2OrdersUser.abstract = True

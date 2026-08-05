@@ -1,0 +1,239 @@
+{
+    "metrics": {
+        "iteration_duration": {
+            "avg": 5408.349222413999,
+            "min": 168.259367,
+            "med": 4299.986972,
+            "max": 16406.290278,
+            "p(90)": 9865.575996399999,
+            "p(95)": 10455.364323
+        },
+        "requests_completed": {
+            "count": 9566,
+            "rate": 344.57256585415126
+        },
+        "http_req_waiting": {
+            "min": 20.880878,
+            "med": 2574.827053,
+            "max": 10418.977981,
+            "p(90)": 5151.362275600001,
+            "p(95)": 6565.900682800002,
+            "avg": 2818.8165584871895
+        },
+        "checks": {
+            "fails": 1436,
+            "passes": 36828,
+            "value": 0.9624712523520803
+        },
+        "data_sent": {
+            "count": 4387782,
+            "rate": 158050.3138353188
+        },
+        "vus": {
+            "value": 43,
+            "min": 0,
+            "max": 3004
+        },
+        "data_received": {
+            "count": 8581971,
+            "rate": 309127.3016470747
+        },
+        "http_req_tls_handshaking": {
+            "min": 0,
+            "med": 0,
+            "max": 0,
+            "p(90)": 0,
+            "p(95)": 0,
+            "avg": 0
+        },
+        "http_req_sending": {
+            "med": 0.04557,
+            "max": 5872.147452,
+            "p(90)": 393.6820414,
+            "p(95)": 1005.1702474000001,
+            "avg": 188.12750631811053,
+            "min": 0.011415
+        },
+        "http_req_failed": {
+            "passes": 359,
+            "fails": 9210,
+            "thresholds": {
+                "rate<0.01": true
+            },
+            "value": 0.03751698192078587
+        },
+        "status_202": {
+            "count": 9207,
+            "rate": 331.64118898381463
+        },
+        "status_502": {
+            "count": 359,
+            "rate": 12.931376870336642
+        },
+        "requests_started": {
+            "rate": 344.57256585415126,
+            "count": 9566
+        },
+        "http_reqs": {
+            "count": 9569,
+            "rate": 344.6806274993073
+        },
+        "http_req_connecting": {
+            "p(95)": 2904.1599434000004,
+            "avg": 626.831327256244,
+            "min": 0,
+            "med": 0,
+            "max": 6404.467727,
+            "p(90)": 2034.4867096
+        },
+        "http_req_duration": {
+            "med": 2853.576504,
+            "max": 10419.075497,
+            "p(90)": 5671.154278800001,
+            "p(95)": 6661.0870782,
+            "avg": 3067.24198360707,
+            "min": 31.633087
+        },
+        "acceptance_latency": {
+            "avg": 3068.333014516784,
+            "min": 31.633087,
+            "med": 2853.603382,
+            "max": 10419.075497,
+            "p(90)": 5671.3851464,
+            "p(95)": 6661.488571599998,
+            "thresholds": {
+                "p(95)<=250": true
+            }
+        },
+        "accepted_commands": {
+            "count": 9206,
+            "rate": 331.6051684354293
+        },
+        "http_req_blocked": {
+            "p(95)": 3303.810415000001,
+            "avg": 652.1401886062274,
+            "min": 0.003507,
+            "med": 0.00978,
+            "max": 7352.546896,
+            "p(90)": 2113.3843742000004
+        },
+        "http_req_receiving": {
+            "min": 0.024161,
+            "med": 0.073657,
+            "max": 3089.128953,
+            "p(90)": 0.9562350000000001,
+            "p(95)": 210.4394820000013,
+            "avg": 60.29791880175582
+        },
+        "http_req_duration{expected_response:true}": {
+            "min": 31.633087,
+            "med": 2883.6844069999997,
+            "max": 10419.075497,
+            "p(90)": 5731.895755,
+            "p(95)": 6684.759131049998,
+            "avg": 3106.5745330564687
+        },
+        "vus_max": {
+            "value": 3032,
+            "min": 217,
+            "max": 3032
+        },
+        "acceptance_success": {
+            "passes": 9206,
+            "fails": 359,
+            "thresholds": {
+                "rate>=0.99": true
+            },
+            "value": 0.9624673288029273
+        },
+        "failed_commands": {
+            "count": 359,
+            "rate": 12.931376870336642
+        },
+        "dropped_iterations": {
+            "count": 10255,
+            "rate": 369.3907236916497
+        },
+        "iterations": {
+            "count": 9565,
+            "rate": 344.53654530576597
+        }
+    },
+    "setup_data": {
+        "customerId": "7aea79dc-38df-445d-8de2-4cd759e27baf",
+        "token": "dev-session-ec9c9c4f-7fc0-4010-9529-1a9763ca101c"
+    },
+    "root_group": {
+        "path": "",
+        "id": "d41d8cd98f00b204e9800998ecf8427e",
+        "groups": {
+            "setup": {
+                "groups": {},
+                "checks": {
+                        "status is 202": {
+                            "name": "status is 202",
+                            "path": "::setup::status is 202",
+                            "id": "84db5780a82987623eb73d13add934a0",
+                            "passes": 1,
+                            "fails": 0
+                        },
+                        "order identifier returned": {
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "order identifier returned",
+                            "path": "::setup::order identifier returned",
+                            "id": "6cc94c52960020d2ca8a8b96a0780ff9"
+                        },
+                        "saga identifier returned": {
+                            "path": "::setup::saga identifier returned",
+                            "id": "47d103e83924b06fa9ea91728244dd87",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "saga identifier returned"
+                        },
+                        "initial state is asynchronous": {
+                            "path": "::setup::initial state is asynchronous",
+                            "id": "bb1482306e6c66ce18237d6f2127f522",
+                            "passes": 1,
+                            "fails": 0,
+                            "name": "initial state is asynchronous"
+                        }
+                    },
+                "name": "setup",
+                "path": "::setup",
+                "id": "5c0f8025f7e0b6654089e5b00e950f1a"
+            }
+        },
+        "checks": {
+            "status is 202": {
+                "name": "status is 202",
+                "path": "::status is 202",
+                "id": "34a6d451b2be8259be22b1a5c2a715cf",
+                "passes": 9206,
+                "fails": 359
+            },
+            "order identifier returned": {
+                "name": "order identifier returned",
+                "path": "::order identifier returned",
+                "id": "6a7d90a87ee91fe4769408e7b3ce87e4",
+                "passes": 9206,
+                "fails": 359
+            },
+            "saga identifier returned": {
+                "id": "9d6ea424c31cb2a39d00a97d5c703335",
+                "passes": 9206,
+                "fails": 359,
+                "name": "saga identifier returned",
+                "path": "::saga identifier returned"
+            },
+            "initial state is asynchronous": {
+                "name": "initial state is asynchronous",
+                "path": "::initial state is asynchronous",
+                "id": "fefdf95d9ff3a4e1564c3cd55e683445",
+                "passes": 9206,
+                "fails": 359
+            }
+        },
+        "name": ""
+    }
+}

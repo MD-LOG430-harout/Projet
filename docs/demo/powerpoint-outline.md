@@ -1,14 +1,14 @@
-# PowerPoint outline - four slides only
+# PowerPoint outline - four slides for the CanTelcoX CTO
 
-## Slide 1 - From Phase 1 to Phase 2
+## Slide 1 - The business and technical problem
 
-Title: From Phase 1 to Phase 2
+Title: CanTelcoX: making long telecom workflows resilient
 
 Bullets:
 
-- synchronous REST became event-driven
-- Kafka + Outbox + saga
-- six existing services preserved
+- long synchronous chains amplify outages and latency
+- order state is difficult to recover and trace
+- objective: evolve without rewriting six services
 
 Recommended diagram or screenshot:
 
@@ -17,20 +17,19 @@ Kafka, PortabilityHub, Prometheus/Grafana, and Jaeger.
 
 Speaker notes, max 45 seconds:
 
-Phase 1 mostly coordinated the services through synchronous REST. Phase 2 keeps
-the existing use cases and services, but changes the collaboration style: public
-requests are accepted quickly, local state and Outbox events are committed in
-MySQL, and Kafka carries the saga facts asynchronously.
+Address the teacher as CanTelcoX's CTO. Start with the operational problem, not
+the technology. Explain that the recommendation preserves the existing services
+and public APIs while changing the internal collaboration model.
 
-## Slide 2 - Nominal saga
+## Slide 2 - Recommended architecture
 
-Title: Nominal saga
+Title: Evolutionary event-driven architecture
 
 Bullets:
 
-- `CommandePassee -> PaiementAutorise`
-- `PaiementAutorise -> LigneActivee`
-- `LigneActivee -> CommandeConfirmee`
+- REST for immediate interaction; Kafka for long workflows
+- Outbox + idempotent consumers protect integrity
+- choreographed saga reaches a controlled terminal state
 
 Recommended diagram or screenshot:
 
@@ -44,7 +43,7 @@ writes the order, saga state, and `CommandePassee` in one local transaction.
 After that, each service consumes and produces facts through Kafka until the
 order reaches `CONFIRMEE`.
 
-## Slide 3 - Compensation and portability
+## Slide 3 - Evidence under success and failure
 
 Title: Compensation and portability
 
@@ -66,15 +65,15 @@ For portability, initiation is synchronous REST to the supplied Hub, then HTTP
 callbacks are mapped by the ACL: `port_completed` becomes `NumeroPorte`, while
 `rejected` and `cancelled` become `PortabiliteEchouee`.
 
-## Slide 4 - Evidence and limits
+## Slide 4 - Recommendation and production conditions
 
-Title: Evidence and limits
+Title: Proceed, with three production gates
 
 Bullets:
 
-- 97 passed, 0 failed
-- saga P95 2.0 s; compensation P95 2.95 s
-- throughput and real free5GC success still unresolved
+- make Kafka highly available
+- meet acceptance latency and throughput targets
+- validate the real free5GC path end to end
 
 Recommended diagram or screenshot:
 
@@ -83,9 +82,8 @@ Golden Signals plus the final test result.
 
 Speaker notes, max 45 seconds:
 
-The saved validation has 97 passed, 0 failed, and 12 skipped. Nominal saga P95
-was 2.0 seconds, compensation P95 was 2.9543 seconds, availability was 100% in
-the nominal mixed test, Kafka lag after drain was 0, and pending Outbox rows
-after drain were 0. The honest limits are that acceptance P95 and throughput did
-not meet targets, and real free5GC success was not validated.
+Recommend continuing the architecture because the prototype validates the core
+integrity and resilience mechanisms. Do not recommend production approval yet:
+make it conditional on Kafka high availability, performance remediation, and
+successful end-to-end free5GC validation.
 

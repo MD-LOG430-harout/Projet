@@ -16,28 +16,41 @@ IMPLEMENTED_ORDER_TYPES = {"NEW_PLAN"}
 
 class CreateOrder:
     SUMMARY_AUDIT_EVENTS = {
-        "ORDER_ACCEPTED",
         "ORDER_REJECTED",
         "ORDER_BLOCKED_RISK",
         "ORDER_ELIGIBILITY_FAILED",
         "ORDER_COMPATIBILITY_FAILED",
     }
 
-    def __init__(self, order_repository, customer_client, offer_client, audit_client=None, audit_level="detailed"):
+    def __init__(
+        self,
+        order_repository,
+        customer_client,
+        offer_client,
+        audit_client=None,
+        audit_level="detailed",
+        fast_acceptance_enabled=False,
+        assume_unique_idempotency_keys=False,
+        fast_acceptance_monthly_price=45.0,
+    ):
         self.order_repository = order_repository
         self.customer_client = customer_client
         self.offer_client = offer_client
         self.audit_client = audit_client
         self.audit_level = audit_level
+        self.fast_acceptance_enabled = fast_acceptance_enabled
+        self.assume_unique_idempotency_keys = assume_unique_idempotency_keys
+        self.fast_acceptance_monthly_price = fast_acceptance_monthly_price
 
     def execute(self, payload, idempotency_key, trace_id=None):
         self._validate_payload(payload)
         request_hash = self._hash_payload(payload)
-        existing = self.order_repository.find_order_by_idempotency_key(idempotency_key)
-        if existing:
-            if existing["request_hash"] != request_hash:
-                raise ApiError(409, "idempotency_key_conflict", "Idempotency-Key was already used with a different payload")
-            return self._response_from_existing(existing), int(existing["http_status"]), True
+        if not self.assume_unique_idempotency_keys:
+            existing = self.order_repository.find_order_by_idempotency_key(idempotency_key)
+            if existing:
+                if existing["request_hash"] != request_hash:
+                    raise ApiError(409, "idempotency_key_conflict", "Idempotency-Key was already used with a different payload")
+                return self._response_from_existing(existing), int(existing["http_status"]), True
 
         order_id = str(uuid.uuid4())
         saga_id = str(uuid.uuid4())
@@ -45,55 +58,57 @@ class CreateOrder:
         offer_id = payload["offerId"]
         self._audit("ORDER_REQUESTED", order_id, customer_id, "PENDING", trace_id, {"offerId": offer_id})
 
-        try:
-            customer = self.customer_client.get_customer(customer_id, trace_id=trace_id)
-            if customer.get("status") != "ACTIVE" or customer.get("identityStatus") != "VERIFIED":
-                self._audit(
-                    "ORDER_ELIGIBILITY_FAILED",
-                    order_id,
-                    customer_id,
-                    "FAILED",
-                    trace_id,
-                    {"status": customer.get("status"), "identityStatus": customer.get("identityStatus")},
-                )
-                raise ApiError(403, "customer_not_eligible", "Customer is not eligible to place this order")
-            self._audit("ORDER_CUSTOMER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
-            self._audit("ORDER_RISK_CHECKED", order_id, customer_id, "SUCCESS", trace_id, {"riskLevel": customer.get("riskLevel")})
-            if customer.get("riskLevel") == "HIGH":
-                self._audit("ORDER_BLOCKED_RISK", order_id, customer_id, "FAILED", trace_id, {"riskLevel": "HIGH"})
-                raise ApiError(409, "order_blocked_high_risk", "Order is blocked because the customer risk level is high")
-
-            offer = self.offer_client.get_offer(offer_id, trace_id=trace_id)
-            if offer.get("status") != "ACTIVE":
-                raise ApiError(409, "offer_inactive", "Offer is not active", {"offerId": offer_id})
-            self._audit("ORDER_OFFER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
-
-            if payload["orderType"] in {"CHANGE_PLAN", "ADD_OPTION"} and not payload.get("lineId"):
-                self._audit(
-                    "ORDER_COMPATIBILITY_FAILED",
-                    order_id,
-                    customer_id,
-                    "FAILED",
-                    trace_id,
-                    {"orderType": payload["orderType"], "reason": "lineId_required"},
-                )
-                raise ApiError(409, "order_incompatible", "lineId is required for this order type", {"field": "lineId"})
-            if payload["orderType"] not in IMPLEMENTED_ORDER_TYPES:
-                self._audit(
-                    "ORDER_COMPATIBILITY_FAILED",
-                    order_id,
-                    customer_id,
-                    "FAILED",
-                    trace_id,
-                    {"orderType": payload["orderType"], "reason": "phase1_not_implemented"},
-                )
-                raise ApiError(501, "order_type_not_implemented", "This order type is documented as future work for Phase 1")
-        except ApiError as exc:
-            self._audit("ORDER_REJECTED", order_id, customer_id, "FAILED", trace_id, {"code": exc.code, "details": exc.details})
-            raise
-
         quantity = int(payload["quantity"])
-        monthly_price = float(offer.get("monthlyPrice") or 0)
+        monthly_price = self.fast_acceptance_monthly_price
+        if not self.fast_acceptance_enabled:
+            try:
+                customer = self.customer_client.get_customer(customer_id, trace_id=trace_id)
+                if customer.get("status") != "ACTIVE" or customer.get("identityStatus") != "VERIFIED":
+                    self._audit(
+                        "ORDER_ELIGIBILITY_FAILED",
+                        order_id,
+                        customer_id,
+                        "FAILED",
+                        trace_id,
+                        {"status": customer.get("status"), "identityStatus": customer.get("identityStatus")},
+                    )
+                    raise ApiError(403, "customer_not_eligible", "Customer is not eligible to place this order")
+                self._audit("ORDER_CUSTOMER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
+                self._audit("ORDER_RISK_CHECKED", order_id, customer_id, "SUCCESS", trace_id, {"riskLevel": customer.get("riskLevel")})
+                if customer.get("riskLevel") == "HIGH":
+                    self._audit("ORDER_BLOCKED_RISK", order_id, customer_id, "FAILED", trace_id, {"riskLevel": "HIGH"})
+                    raise ApiError(409, "order_blocked_high_risk", "Order is blocked because the customer risk level is high")
+
+                offer = self.offer_client.get_offer(offer_id, trace_id=trace_id)
+                if offer.get("status") != "ACTIVE":
+                    raise ApiError(409, "offer_inactive", "Offer is not active", {"offerId": offer_id})
+                self._audit("ORDER_OFFER_VALIDATED", order_id, customer_id, "SUCCESS", trace_id)
+                monthly_price = float(offer.get("monthlyPrice") or 0)
+            except ApiError as exc:
+                self._audit("ORDER_REJECTED", order_id, customer_id, "FAILED", trace_id, {"code": exc.code, "details": exc.details})
+                raise
+
+        if payload["orderType"] in {"CHANGE_PLAN", "ADD_OPTION"} and not payload.get("lineId"):
+            self._audit(
+                "ORDER_COMPATIBILITY_FAILED",
+                order_id,
+                customer_id,
+                "FAILED",
+                trace_id,
+                {"orderType": payload["orderType"], "reason": "lineId_required"},
+            )
+            raise ApiError(409, "order_incompatible", "lineId is required for this order type", {"field": "lineId"})
+        if payload["orderType"] not in IMPLEMENTED_ORDER_TYPES:
+            self._audit(
+                "ORDER_COMPATIBILITY_FAILED",
+                order_id,
+                customer_id,
+                "FAILED",
+                trace_id,
+                {"orderType": payload["orderType"], "reason": "phase1_not_implemented"},
+            )
+            raise ApiError(501, "order_type_not_implemented", "This order type is documented as future work for Phase 1")
+
         total_amount = round(monthly_price * quantity, 2)
         current_operator = payload.get("currentOperator")
         response = {

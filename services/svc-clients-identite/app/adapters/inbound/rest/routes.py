@@ -1,3 +1,6 @@
+from collections import OrderedDict
+from threading import Lock
+
 from flask import Blueprint, current_app, g, jsonify, request
 
 from services.shared.errors import ApiError
@@ -9,6 +12,29 @@ from app.application.queries.get_customer import GetCustomer
 
 
 bp = Blueprint("clients_identite", __name__)
+
+
+class VerifiedChallengeCache:
+    """Bounded cache for immutable VERIFIED MFA challenges."""
+
+    def __init__(self, max_entries=10000):
+        self.max_entries = max_entries
+        self._entries = OrderedDict()
+        self._lock = Lock()
+
+    def contains(self, challenge_id):
+        with self._lock:
+            if challenge_id not in self._entries:
+                return False
+            self._entries.move_to_end(challenge_id)
+            return True
+
+    def add(self, challenge_id):
+        with self._lock:
+            self._entries[challenge_id] = None
+            self._entries.move_to_end(challenge_id)
+            while len(self._entries) > self.max_entries:
+                self._entries.popitem(last=False)
 
 
 def _customer_public(customer):
@@ -80,9 +106,14 @@ def introspect_token():
         raise ApiError(401, "invalid_token", "Invalid access token")
 
     challenge_id = token.removeprefix("dev-session-")
+    cache = current_app.config["verified_challenge_cache"]
+    if cache.contains(challenge_id):
+        return ("", 204)
     challenge = current_app.config["mfa_repository"].find_by_id(challenge_id)
     if not challenge or challenge["status"] != "VERIFIED":
         raise ApiError(401, "invalid_token", "Invalid access token")
+
+    cache.add(challenge_id)
 
     return ("", 204)
 

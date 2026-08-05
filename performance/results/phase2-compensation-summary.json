@@ -1,0 +1,5 @@
+{
+  "status": "not_executed",
+  "reason": "The running immutable prebuilt stack used HLR_FORCE_FAILURE=false. A deterministic compensation campaign requires recreating svc-lignes-services with HLR_FORCE_FAILURE=true; this was not completed in this session.",
+  "measured_values": null
+}

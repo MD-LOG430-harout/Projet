@@ -88,6 +88,12 @@ Identifiants Grafana de demonstration par defaut: `admin` / `admin`, sauf modifi
 
 ## API et demo Postman
 
+Pour préparer la soutenance Phase 2, utiliser le fil conducteur complet :
+
+- [Présentation complète et questions par rôle](docs/demo/presentation-complete-roles-fr.md)
+- [Démo technique de 10 minutes](docs/demo/demo-10-minutes.md)
+- [Checklist avant, pendant et après la présentation](docs/demo/demo-checklist.md)
+
 Le contrat OpenAPI principal est ici:
 
 - [docs/api/openapi.yaml](docs/api/openapi.yaml)

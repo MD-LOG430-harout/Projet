@@ -1,0 +1,2 @@
+campaign,stage_duration_s,offered_rates_ops_s,accepted_count,accepted_rate_ops_s,success_rate,p95_ms,max_ms,dropped_iterations,peak_observed_line_lag,peak_observed_outbox_pending,post_drain_line_lag,post_drain_outbox_pending,post_drain_active_sagas,notes
+2026-08-05-short-probe,5,"50;200;500;1000;1200;50",643,16.239675,0.1754,10070,10420,558,61,195,0,0,0,"Aggregate k6 summary; per-stage Prometheus export was not captured, so no per-stage values are inferred"

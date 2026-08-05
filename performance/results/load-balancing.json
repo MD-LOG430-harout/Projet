@@ -1,0 +1,5 @@
+{
+  "status": "not_executed",
+  "reason": "The measured campaigns used one command-service container. NGINX remained healthy, but an N=2 instance-failure campaign was not completed.",
+  "measured_values": null
+}
