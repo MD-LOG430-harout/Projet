@@ -6,7 +6,7 @@ from services.shared.errors import register_error_handlers
 from services.shared.http import register_request_hooks
 from services.shared.logging import configure_json_logging
 from services.shared.metrics import register_metrics
-from services.shared.mysql import connect_from_env
+from services.shared.mysql import build_pooled_connection_factory
 from services.shared.tracing import initialize_tracing, OtelSettings
 
 from app.adapters.inbound.rest.routes import bp
@@ -40,8 +40,7 @@ def create_app(
         "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "cantelcox_dev"),
         "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "usage_facturation"),
     }
-    def connection_factory():
-        return connect_from_env(db_config)
+    connection_factory = build_pooled_connection_factory(db_config, size=int(os.getenv("MYSQL_POOL_SIZE", "10")))
     app.config["repository"] = repository or MysqlUsageBillingRepository(connection_factory)
     app.config["customer_client"] = customer_client or CustomerClient(os.getenv("CUSTOMER_SERVICE_URL", "http://svc-clients-identite:5000"))
     app.config["payment_gateway"] = payment_gateway or SimulatedPaymentGateway(

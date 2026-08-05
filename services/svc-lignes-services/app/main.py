@@ -6,7 +6,7 @@ from services.shared.errors import register_error_handlers
 from services.shared.http import register_request_hooks
 from services.shared.logging import configure_json_logging
 from services.shared.metrics import register_metrics
-from services.shared.mysql import connect_from_env
+from services.shared.mysql import build_pooled_connection_factory
 from services.shared.tracing import initialize_tracing, OtelSettings
 
 from app.adapters.inbound.rest.routes import bp
@@ -37,8 +37,7 @@ def create_app(line_repository=None, hlr_adapter=None, portability_adapter=None,
         "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "cantelcox_dev"),
         "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "lignes_services"),
     }
-    def default_connection_factory():
-        return connect_from_env(db_config)
+    default_connection_factory = build_pooled_connection_factory(db_config, size=int(os.getenv("MYSQL_POOL_SIZE", "10")))
     connection_factory = connection_factory_override or default_connection_factory
     app.config["line_repository"] = line_repository or MysqlLineRepository(connection_factory)
     app.config["hlr_adapter"] = hlr_adapter or _build_hlr_adapter()

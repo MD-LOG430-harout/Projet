@@ -6,7 +6,7 @@ from services.shared.errors import register_error_handlers
 from services.shared.http import register_request_hooks
 from services.shared.logging import configure_json_logging
 from services.shared.metrics import register_metrics
-from services.shared.mysql import connect_from_env
+from services.shared.mysql import build_pooled_connection_factory
 from services.shared.tracing import initialize_tracing, OtelSettings
 
 from app.adapters.inbound.rest.routes import VerifiedChallengeCache, bp
@@ -33,8 +33,7 @@ def create_app(customer_repository=None, mfa_repository=None, audit_client=None)
         "MYSQL_PASSWORD": os.getenv("MYSQL_PASSWORD", "cantelcox_dev"),
         "MYSQL_DATABASE": os.getenv("MYSQL_DATABASE", "clients_identite"),
     }
-    def connection_factory():
-        return connect_from_env(db_config)
+    connection_factory = build_pooled_connection_factory(db_config, size=int(os.getenv("MYSQL_POOL_SIZE", "10")))
     app.config["customer_repository"] = customer_repository or MysqlCustomerRepository(connection_factory)
     app.config["mfa_repository"] = mfa_repository or MysqlMfaRepository(connection_factory)
     app.config["verified_challenge_cache"] = VerifiedChallengeCache()
