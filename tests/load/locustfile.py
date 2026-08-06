@@ -10,7 +10,7 @@ from locust import FastHttpUser, HttpUser, between, task
 
 
 STEADY_STATE_ONLY = os.getenv("LOCUST_STEADY_STATE_ONLY", "false").lower() == "true"
-PHASE2_ORDERS_ONLY = os.getenv("LOCUST_PHASE2_ORDERS_ONLY", "false").lower() == "true"
+PHASE2_ORDERS_ONLY = os.getenv("LOCUST_PHASE2_ORDERS_ONLY", "true").lower() == "true"
 
 _msisdn_counter = count()
 
@@ -390,7 +390,20 @@ class CanTelcoXPhase2OrdersUser(FastHttpUser):
             return None, None
         return customer_id, _json(verified_response).get("sessionToken")
 
-    @task
+    @task(80)
+    def consult_offers(self):
+        if not self.session_token:
+            return
+        with self.client.get(
+            "/v1/offers",
+            headers={"Authorization": f"Bearer {self.session_token}", "TraceId": self._trace()},
+            name="UC-05 consult offers",
+            catch_response=True,
+        ) as response:
+            if response.status_code != 200:
+                response.failure(f"expected 200, got {response.status_code}")
+
+    @task(1)
     def create_order(self):
         if not self.customer_id or not self.session_token:
             return
@@ -410,7 +423,7 @@ class CanTelcoXPhase2OrdersUser(FastHttpUser):
                 "numberMode": "NEW",
             },
             headers=headers,
-            name="Phase2 event-driven create order",
+            name="UC-05 create order",
             catch_response=True,
         ) as response:
             if response.status_code != 202:
