@@ -70,7 +70,16 @@ class MysqlConnectionPool:
                 with self._lock:
                     if self._created < self._size:
                         self._created += 1
+                        acquired_slot = True
+                    else:
+                        acquired_slot = False
+                if acquired_slot:
+                    try:
                         return self._new_connection()
+                    except Exception:
+                        with self._lock:
+                            self._created -= 1
+                        raise
                 conn = self._idle.get()
             try:
                 conn.ping(reconnect=True)

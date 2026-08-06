@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 
 from services.shared.events import EventEnvelope
+from services.shared.metrics import SAGA_CONVERGENCE_DURATION
 from services.shared.outbox import MysqlOutboxRepository, run_in_transaction
 from services.shared.processed_events import DuplicateEvent, MysqlProcessedEventRepository
 
@@ -118,8 +119,19 @@ class OrderSagaHandler:
             """,
             (status, "ACTIVE" if status == "CONFIRMEE" else "FAILED", source_event["eventType"], source_event["eventId"], saga["saga_id"]),
         )
+        self._observe_convergence(cursor, saga["saga_id"], status)
         self.outbox.insert(cursor, resulting_event)
         return "APPLIED"
+
+    def _observe_convergence(self, cursor, saga_id, status):
+        cursor.execute(
+            "SELECT TIMESTAMPDIFF(MICROSECOND, created_at, completed_at) / 1000000.0 AS duration_seconds "
+            "FROM saga_state WHERE saga_id=%s",
+            (saga_id,),
+        )
+        duration_seconds = cursor.fetchone()["duration_seconds"]
+        result = "completed" if status == "CONFIRMEE" else "compensated"
+        SAGA_CONVERGENCE_DURATION.labels(result=result).observe(float(duration_seconds))
 
 
 class SagaTimeoutScanner:

@@ -12,6 +12,12 @@ REQUEST_LATENCY = Histogram(
     "HTTP request latency",
     ["service", "method", "path"],
 )
+SAGA_CONVERGENCE_DURATION = Histogram(
+    "saga_convergence_duration_seconds",
+    "End-to-end duration of the order placement saga, from CommandePassee to a terminal event",
+    ["result"],
+    buckets=(0.25, 0.5, 1, 2, 3, 4, 5, 7.5, 10, 15, 20, 30, 60),
+)
 
 
 def register_metrics(app, service_name):
